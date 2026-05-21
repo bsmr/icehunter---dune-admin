@@ -1,6 +1,7 @@
 db-snapshots/
 .env
 .env.*
+!.env.example
 settings.local.json
 
 # SSH keys — never commit

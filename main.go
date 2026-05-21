@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+var version = "dev" // set by goreleaser ldflags
+
 // ── config ────────────────────────────────────────────────────────────────────
 
 var (
