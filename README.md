@@ -1,142 +1,140 @@
 # dune-admin
 
-A terminal UI (TUI) admin panel for managing a Dune Awakening private server. Connects to the server VM over SSH, then port-forwards into the k3s cluster to reach the PostgreSQL database and kubectl API directly from your local machine.
-
-## Tabs
-
-| Tab | What it does |
-|-----|-------------|
-| **Battlegroup** | Start/stop the battlegroup, view pod status, stream server logs |
-| **Database** | Browse tables, describe schema, run raw SQL, search rows |
-| **Logs** | Stream live logs from any pod in the cluster |
-| **Players** | View connected players, character info |
+Web-based admin panel for a Dune Awakening private server. Connects to the server VM over SSH, then tunnels into the k3s cluster to reach PostgreSQL directly — no exposed ports, no VPN required.
 
 ## Architecture
 
 ```
 your machine
-  └─ SSH tunnel to VM (192.168.0.72:22)
-       ├─ kubectl exec / port-forward → k3s cluster
-       └─ PostgreSQL port-forward → dune DB (port 15432)
-```
+  └─ SSH tunnel → VM
+       └─ kubectl discover → DB pod IP
+            └─ TCP tunnel → PostgreSQL (port 15432)
 
-The app never exposes the database port publicly — all traffic flows through the SSH tunnel established at startup.
+browser → http://localhost:8080  (served by the same binary)
+```
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Go | 1.21+ | `go.toolchain` in go.mod pins the exact version |
-| SSH key | — | Pre-installed on the server VM; path auto-detected (see below) |
-| Access to VM | port 22 | The VM must be reachable from your machine |
+| Requirement | Notes |
+|-------------|-------|
+| **Go 1.21+** | Install from https://go.dev/dl/ or `brew install go` |
+| **`sshKey`** | Private key for the VM — place it at the repo root as `./sshKey` |
+| **VM access** | Port 22 must be reachable; SSH user needs passwordless `sudo kubectl` |
 
-> **Item data (optional).** Pass `-itemdata ../dune-admin/item-data.json` to enable `stack_max` / `volume` display in the Database tab. Without it the tool still works — those columns just show raw DB values.
+That's it. The setup wizard handles everything else — database credentials are read from your battlegroup YAML.
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/Icehunter/dune-admin
+cd dune-admin
+
+# Place your SSH private key here:
+cp /path/to/your/key ./sshKey
+chmod 600 ./sshKey
+
+# Run the setup wizard — connects via SSH, discovers config, writes .env:
+make setup
+
+# Build the UI + binary, then launch:
+make build && ./dune-admin
+```
+
+Open **http://localhost:8080** in your browser.
+
+---
+
+## Setup wizard
+
+`make setup` (or `go run . -setup`) runs an interactive wizard that:
+
+1. Finds your SSH key (checks `./sshKey`, `~/.ssh/dune`, `~/.ssh/id_ed25519`)
+2. Prompts for VM host:port and SSH user
+3. SSHes in, finds the database pod via `kubectl`
+4. Derives the battlegroup name from the pod and reads credentials from `~/.dune/<battlegroup>.yaml`
+5. Writes a `.env` file (chmod 600, never committed)
+
+Re-run `make setup` any time your VM IP or credentials change.
+
+---
+
+## Makefile targets
+
+| Target | Description |
+|--------|-------------|
+| `make setup` | Run the interactive setup wizard |
+| `make build` | Build the React frontend + Go binary |
+| `make go` | Build the Go binary only (uses existing `web/dist`) |
+| `make web` | Build the React frontend only |
+| `make linux` | Cross-compile a Linux amd64 binary |
+| `make dev-server` | Run without building (`go run .`) |
+
+---
+
+## Configuration
+
+Config is read from `.env` (written by `make setup`) or environment variables. All flags can also be passed on the command line.
+
+| Env var | Flag | Default | Description |
+|---------|------|---------|-------------|
+| `SSH_HOST` | `-host` | `192.168.0.72:22` | VM host:port |
+| `SSH_USER` | `-user` | `dune` | SSH user |
+| `SSH_KEY` | `-key` | *(auto-detected)* | SSH private key path |
+| `DB_PORT` | `-dbport` | `15432` | PostgreSQL port inside the cluster |
+| `DB_USER` | `-dbuser` | `dune` | PostgreSQL user |
+| `DB_PASS` | `-dbpass` | *(from battlegroup YAML)* | PostgreSQL password |
+| `DB_NAME` | `-dbname` | `dune` | PostgreSQL database |
+| `DB_SCHEMA` | `-schema` | `dune` | PostgreSQL schema |
+| `SCRIP_CURRENCY` | `-scripcurrency` | `1` | Scrip currency ID |
+| `LISTEN_ADDR` | `-addr` | `:8080` | HTTP listen address |
 
 ### SSH key lookup order
 
-The app searches these paths in order and uses the first one found:
+If `SSH_KEY` / `-key` is not set, the binary checks these in order:
 
-1. Value of `-key` flag (explicit override)
-2. `../sshKey` (sibling to the repo's `dune-admin/` directory — the standard location)
-3. `./sshKey` (current working directory)
-4. `~/.ssh/dune`
-5. `~/.ssh/id_ed25519`
-6. `~/.ssh/id_rsa`
-
-The SSH key is never committed to the repository (`.gitignore` blocks it). Whoever sets up the server places the key at `<repo-root>/sshKey`.
+1. `./sshKey`
+2. `../sshKey`
+3. `~/.ssh/dune`
+4. `~/.ssh/id_ed25519`
+5. `~/.ssh/id_rsa`
 
 ---
 
-## Building
+## Hosted frontend (optional)
 
-All platforms require Go 1.21+. Install from https://go.dev/dl/ or via a package manager.
-
-### macOS
+The frontend can be deployed to Cloudflare Pages and pointed at a locally-running binary — useful for sharing the panel with multiple people without exposing SSH.
 
 ```bash
-# Install Go via Homebrew (if not already installed)
-brew install go
-
-cd dune-admin
-go build -o dune-admin .
-./dune-admin
+# Build and deploy (one-time or on update):
+cd web && npm ci && npm run build
+wrangler pages deploy dist --project-name dune-admin
 ```
 
-### Linux (Ubuntu/Debian)
+When visiting the hosted URL, the app prompts for the backend URL on first load (e.g. `http://localhost:8080`). This is saved in `localStorage` and never re-prompted.
 
-```bash
-# Install Go
-sudo apt-get update && sudo apt-get install -y golang-go
-# Or download the official tarball for a newer version:
-# https://go.dev/dl/
+The binary adds CORS headers automatically — no extra configuration needed.
 
-cd dune-admin
-go build -o dune-admin .
-./dune-admin
-```
-
-### Windows
-
-```powershell
-# Install Go from https://go.dev/dl/ (installer or zip)
-# Open a terminal in the dune-admin directory:
-
-go build -o dune-admin.exe .
-.\dune-admin.exe
-```
-
-> On Windows the TUI requires Windows Terminal or a modern terminal emulator for correct rendering. The classic `cmd.exe` prompt may not render box-drawing characters correctly.
-
----
-
-## Running
-
-```
-./dune-admin [flags]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-host` | `192.168.0.72:22` | SSH host:port of the TrueNAS VM |
-| `-user` | `dune` | SSH user on the VM |
-| `-key` | *(auto-detected)* | Path to the SSH private key |
-| `-itemdata` | *(empty)* | Path to `item-data.json` for stack/volume display |
-| `-dbport` | `15432` | PostgreSQL port inside the k3s cluster |
-| `-dbuser` | `dune` | PostgreSQL user |
-| `-dbpass` | `dune` | PostgreSQL password |
-| `-dbname` | `dune` | PostgreSQL database name |
-| `-schema` | `dune` | PostgreSQL schema |
-| `-scripcurrency` | `1` | Scrip currency ID (set `-1` for auto-detect) |
-
-### Common invocations
-
-```bash
-# Standard — SSH key next to repo root, default server IP
-./dune-admin
-
-# Different server IP
-./dune-admin -host 10.0.0.5:22
-
-# Explicit key path
-./dune-admin -key ~/.ssh/dune_server_key
-
-# With item data for stack_max/volume display
-./dune-admin -itemdata ../dune-admin/item-data.json
-```
-
-### Keyboard shortcuts (inside the TUI)
-
-| Key | Action |
-|-----|--------|
-| `Tab` / `Shift+Tab` | Switch tabs |
-| `↑` / `↓` | Navigate lists |
-| `Enter` | Select / expand |
-| `q` / `Ctrl+C` | Quit |
-| `/` | Search (Database tab) |
-| `Ctrl+S` | Export / save (Logs tab) |
+> **Note:** Modern browsers allow HTTPS pages to connect to HTTP localhost without mixed-content errors, so `https://your-site.pages.dev` → `http://localhost:8080` works out of the box.
 
 ---
 
 ## Item data (optional enrichment)
 
-`item-data.json` is committed to the repository. It provides `stack_max`, `volume`, `tier`, `rarity`, `vendor_price`, and `category` for every tradeable item. Pass it via `-itemdata` to enable richer display in the Database tab — without it the tool still works fine, those columns just show raw DB values.
+`item-data.json` provides friendly item names, stack limits, volume, tier, and rarity. It ships with the repo but can be regenerated from game PAK files using the [dune-item-data](https://github.com/Icehunter/dune-item-data) build script.
+
+Without it the panel still works — inventory items just show raw template IDs.
+
+---
+
+## Tabs
+
+| Tab | What it does |
+|-----|-------------|
+| **Players** | Browse players; view/edit inventory, specs, currency, XP, faction rep; journey nodes; teleport; history |
+| **Battlegroup** | Start/stop the game server; stream pod logs |
+| **Database** | Run raw SQL against the game DB; browse tables |
+| **Blueprints** | View all unlockable blueprint definitions |
+| **Storage** | Browse server-side storage containers |
+| **Logs** | Stream live pod logs; view cheat detection events |

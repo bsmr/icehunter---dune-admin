@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+superpowers/
+.superpowers/
+.wrangler/
+
+settings.local.json

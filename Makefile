@@ -1,4 +1,4 @@
-.PHONY: build web go linux dev-server
+.PHONY: build web go linux dev-server setup
 
 build: web go
 
@@ -14,3 +14,6 @@ linux:
 
 dev-server:
 	go run .
+
+setup:
+	go run . -setup

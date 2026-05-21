@@ -21,31 +21,32 @@ var (
 	globalPod   string
 )
 
-// cmdConnect is the BubbleTea Cmd fired on Init. It dials SSH, discovers the
-// DB pod via kubectl, then opens a pgx connection tunnelled through SSH.
-func cmdConnect() Msg {
-	keyPath := resolveKeyPath()
+// dialSSH opens an SSH connection using current sshUser/sshHost globals.
+func dialSSH(keyPath string) (*ssh.Client, error) {
 	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
-		return msgConnect{err: fmt.Errorf("read key %s: %w", keyPath, err)}
+		return nil, fmt.Errorf("read key %s: %w", keyPath, err)
 	}
 	signer, err := ssh.ParsePrivateKey(keyData)
 	if err != nil {
-		return msgConnect{err: fmt.Errorf("parse key: %w", err)}
+		return nil, fmt.Errorf("parse key: %w", err)
 	}
-	cfg := &ssh.ClientConfig{
+	client, err := ssh.Dial("tcp", sshHost, &ssh.ClientConfig{
 		User:            sshUser,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-	client, err := ssh.Dial("tcp", sshHost, cfg)
+	})
 	if err != nil {
-		return msgConnect{err: fmt.Errorf("SSH dial: %w", err)}
+		return nil, fmt.Errorf("SSH dial: %w", err)
 	}
+	return client, nil
+}
 
+// discoverDBPod uses kubectl to find the DB pod and returns (namespace, podName, podIP).
+func discoverDBPod(client *ssh.Client) (ns, pod, podIP string, err error) {
 	sess, err := client.NewSession()
 	if err != nil {
-		return msgConnect{err: fmt.Errorf("SSH session: %w", err)}
+		return "", "", "", fmt.Errorf("SSH session: %w", err)
 	}
 	// Use jsonpath to extract namespace + podIP directly — avoids awk column
 	// miscount when RESTARTS shows "1 (32m ago)" instead of "0".
@@ -53,25 +54,34 @@ func cmdConnect() Msg {
 		`sudo kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.status.podIP}{"\n"}{end}' 2>/dev/null | grep db-dbdepl-sts | head -1`)
 	sess.Close()
 	if err != nil {
-		return msgConnect{err: fmt.Errorf("kubectl: %w", err)}
+		return "", "", "", fmt.Errorf("kubectl: %w", err)
 	}
-
 	parts := strings.Fields(strings.TrimSpace(string(out)))
 	if len(parts) < 3 {
-		return msgConnect{err: fmt.Errorf("db pod not found")}
+		return "", "", "", fmt.Errorf("database pod not found in cluster")
 	}
-	globalPodNS = parts[0]
-	globalPod = parts[1]
-	podIP := parts[2]
-	globalSSH = client
+	return parts[0], parts[1], parts[2], nil
+}
+
+// cmdConnect dials SSH, discovers the DB pod, then opens a pgx connection tunnelled through SSH.
+func cmdConnect() Msg {
+	keyPath := resolveKeyPath()
+	client, err := dialSSH(keyPath)
+	if err != nil {
+		return msgConnect{err: err}
+	}
+
+	ns, pod, podIP, err := discoverDBPod(client)
+	if err != nil {
+		client.Close()
+		return msgConnect{err: err}
+	}
+	globalPodNS = ns
+	globalPod = pod
 	globalPodIP = podIP
+	globalSSH = client
 
 	pool, err := connectDB(context.Background(), dbUser, dbPass)
-	if err != nil && dbUser == "dune" && dbPass == "dune" {
-		if postgresPass, passErr := discoverPostgresPassword(client); passErr == nil && postgresPass != "" {
-			pool, err = connectDB(context.Background(), "postgres", postgresPass)
-		}
-	}
 	if err != nil {
 		client.Close()
 		globalSSH = nil
@@ -112,25 +122,67 @@ func connectDB(ctx context.Context, user, pass string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func discoverPostgresPassword(client *ssh.Client) (string, error) {
-	if globalPodNS == "" || globalPod == "" {
-		return "", fmt.Errorf("db pod not discovered")
-	}
-	sess, err := client.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer sess.Close()
-	cmd := fmt.Sprintf("sudo kubectl exec -n %s %s -- printenv POSTGRES_PASSWORD", shellQuote(globalPodNS), shellQuote(globalPod))
-	out, err := sess.CombinedOutput(cmd)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// battlegroupFromPod extracts the battlegroup name from a pod name.
+// Pod naming pattern: <battlegroup>-db-dbdepl-sts-<N>
+func battlegroupFromPod(pod string) string {
+	const suffix = "-db-dbdepl-sts-"
+	if idx := strings.LastIndex(pod, suffix); idx != -1 {
+		return pod[:idx]
+	}
+	return ""
+}
+
+// listBattlegroups returns battlegroup names by running `battlegroup list` via
+// a login shell (so PATH includes the battlegroup binary).
+func listBattlegroups(client *ssh.Client) []string {
+	sess, err := client.NewSession()
+	if err != nil {
+		return nil
+	}
+	defer sess.Close()
+	out, err := sess.CombinedOutput("bash -lc 'battlegroup list' 2>/dev/null")
+	if err != nil || strings.TrimSpace(string(out)) == "" {
+		return nil
+	}
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "- ") {
+			if name := strings.TrimSpace(line[2:]); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// extractPasswordFromYAML reads the DB user and password from a battlegroup YAML file
+// via SSH. Credentials live at spec.database.template.spec.deployment.spec.{user,password}.
+func extractPasswordFromYAML(client *ssh.Client, filePath string) (user, pass string) {
+	sess, err := client.NewSession()
+	if err != nil {
+		return "", ""
+	}
+	defer sess.Close()
+	// Expand ~ on the remote side so the path resolves correctly.
+	out, err := sess.CombinedOutput(fmt.Sprintf("cat %s 2>/dev/null", shellQuote(filePath)))
+	if err != nil || len(out) == 0 {
+		// Try with shell expansion for the tilde.
+		sess2, err2 := client.NewSession()
+		if err2 != nil {
+			return "", ""
+		}
+		defer sess2.Close()
+		out, err = sess2.CombinedOutput(fmt.Sprintf(`bash -c 'cat %s'`, filePath))
+		if err != nil || len(out) == 0 {
+			return "", ""
+		}
+	}
+	return parseDeploymentCredentials(out)
 }
 
 // sshExec runs a command on the remote VM and returns combined stdout+stderr.

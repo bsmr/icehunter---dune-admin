@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Show, SignInButton, UserButton, useAuth } from '@clerk/react'
 import { Toast } from '@heroui/react'
 import { Tabs } from '@heroui/react'
 import { useStatus } from './hooks/useStatus'
@@ -9,7 +10,18 @@ import LogsTab from './tabs/LogsTab'
 import BlueprintsTab from './tabs/BlueprintsTab'
 import StorageTab from './tabs/StorageTab'
 
+const hasClerk = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+
+function AppWithAuth() {
+  const { isSignedIn } = useAuth()
+  return <AppCore isSignedIn={!!isSignedIn} />
+}
+
 export default function App() {
+  return hasClerk ? <AppWithAuth /> : <AppCore isSignedIn={true} />
+}
+
+function AppCore({ isSignedIn }: { isSignedIn: boolean }) {
   const status = useStatus()
   const [showBackendConfig, setShowBackendConfig] = useState(false)
   const [backendUrl, setBackendUrl] = useState(() => localStorage.getItem('dune_admin_backend') || '')
@@ -59,6 +71,16 @@ export default function App() {
           >
             ⚙
           </button>
+          {hasClerk && (
+            <>
+              <Show when="signed-out">
+                <SignInButton />
+              </Show>
+              <Show when="signed-in">
+                <UserButton />
+              </Show>
+            </>
+          )}
         </div>
       </div>
 
@@ -116,7 +138,7 @@ export default function App() {
             <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
               Current:{' '}
               <span style={{ color: 'var(--color-text)', fontFamily: 'monospace' }}>
-                {localStorage.getItem('dune_admin_backend') || '(embedded — using /api/v1)'}
+                {localStorage.getItem('dune_admin_backend') || 'http://localhost:8080'}
               </span>
             </div>
 
@@ -181,7 +203,7 @@ export default function App() {
                   padding: '6px 12px',
                 }}
               >
-                Clear (use embedded)
+                Reset to localhost:8080
               </button>
             </div>
           </div>
@@ -197,7 +219,7 @@ export default function App() {
               <Tabs.Tab id="players">Players<Tabs.Indicator /></Tabs.Tab>
               <Tabs.Tab id="database">Database<Tabs.Indicator /></Tabs.Tab>
               <Tabs.Tab id="logs">Logs<Tabs.Indicator /></Tabs.Tab>
-              <Tabs.Tab id="blueprints">Blueprints<Tabs.Indicator /></Tabs.Tab>
+              {isSignedIn && <Tabs.Tab id="blueprints">Blueprints<Tabs.Indicator /></Tabs.Tab>}
               <Tabs.Tab id="storage">Storage<Tabs.Indicator /></Tabs.Tab>
             </Tabs.List>
           </Tabs.ListContainer>
@@ -213,9 +235,11 @@ export default function App() {
           <Tabs.Panel id="logs" className="flex-1 overflow-hidden flex flex-col">
             <LogsTab />
           </Tabs.Panel>
-          <Tabs.Panel id="blueprints" className="flex-1 overflow-hidden flex flex-col p-4">
-            <BlueprintsTab />
-          </Tabs.Panel>
+          {isSignedIn && (
+            <Tabs.Panel id="blueprints" className="flex-1 overflow-hidden flex flex-col p-4">
+              <BlueprintsTab />
+            </Tabs.Panel>
+          )}
           <Tabs.Panel id="storage" className="flex-1 overflow-hidden flex flex-col p-4">
             <StorageTab />
           </Tabs.Panel>

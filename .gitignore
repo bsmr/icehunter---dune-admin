@@ -1,5 +1,6 @@
 db-snapshots/
 .env
+.env.*
 settings.local.json
 
 # SSH keys — never commit
@@ -16,3 +17,5 @@ dune-admin-linux
 # macOS
 .DS_Store
 **/.DS_Store
+
+blueprint.json

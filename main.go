@@ -15,6 +15,7 @@ import (
 
 var (
 	captureMode     bool
+	setupMode       bool
 	sshHost         string
 	sshUser         string
 	sshKeyPath      string
@@ -85,6 +86,7 @@ func init() {
 	flag.StringVar(&dbSchema, "schema", envOr("DB_SCHEMA", "dune"), "PostgreSQL schema")
 	flag.StringVar(&listenAddr, "addr", envOr("LISTEN_ADDR", ":8080"), "HTTP listen address")
 	flag.BoolVar(&captureMode, "capture", false, "Capture RabbitMQ messages (grant + notifications) and print to stdout")
+	flag.BoolVar(&setupMode, "setup", false, "Interactive setup wizard — writes .env from SSH autodiscovery")
 }
 
 func resolveKeyPath() string {
@@ -150,11 +152,25 @@ func loadItemData() error {
 
 // ── main ──────────────────────────────────────────────────────────────────────
 
+func needsSetup() bool {
+	_, err := os.Stat(".env")
+	if os.IsNotExist(err) {
+		return true
+	}
+	// .env exists but is empty or missing the discovered DB password.
+	return dbPass == ""
+}
+
 func main() {
 	flag.Parse()
 
+	// Explicit -setup flag: reconfigure and exit (don't start server).
+	if setupMode {
+		runSetup()
+		return
+	}
+
 	if captureMode {
-		// Need SSH to set up the capture user in the MQ pods.
 		if msg, ok := cmdConnect().(msgConnect); ok && msg.err != nil {
 			fmt.Fprintln(os.Stderr, "SSH connect:", msg.err)
 			os.Exit(1)
@@ -168,15 +184,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Connect synchronously (SSH + DB).
-	if msg, ok := cmdConnect().(msgConnect); ok && msg.err != nil {
-		fmt.Fprintln(os.Stderr, "connect:", msg.err)
-		fmt.Fprintln(os.Stderr, "Starting server anyway — use /api/v1/reconnect to retry")
-	} else {
-		// Populate item template list for autocomplete.
-		if msg, ok := cmdFetchItemTemplates().(msgItemTemplates); ok {
-			mergeItemTemplates(msg.templates)
-		}
+	// Auto-run setup wizard when no .env exists — setup leaves us connected.
+	alreadyConnected := false
+	if needsSetup() {
+		runSetup()
+		alreadyConnected = true
+		fmt.Println()
+		fmt.Printf("Starting server on %s...\n", listenAddr)
 	}
 
 	defer func() {
@@ -187,6 +201,23 @@ func main() {
 			globalSSH.Close()
 		}
 	}()
+
+	if !alreadyConnected {
+		// Connect synchronously (SSH + DB).
+		if msg, ok := cmdConnect().(msgConnect); ok && msg.err != nil {
+			fmt.Fprintln(os.Stderr, "connect:", msg.err)
+			fmt.Fprintln(os.Stderr, "Starting server anyway — use /api/v1/reconnect to retry")
+		} else {
+			if msg, ok := cmdFetchItemTemplates().(msgItemTemplates); ok {
+				mergeItemTemplates(msg.templates)
+			}
+		}
+	} else {
+		// Already connected by setup; just populate item templates.
+		if msg, ok := cmdFetchItemTemplates().(msgItemTemplates); ok {
+			mergeItemTemplates(msg.templates)
+		}
+	}
 
 	startServer(listenAddr)
 }

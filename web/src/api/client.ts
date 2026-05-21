@@ -1,14 +1,24 @@
+declare global {
+  interface Window {
+    Clerk?: { session?: { getToken(): Promise<string | null> } }
+  }
+}
+
 function getApiBase(): string {
   const stored = localStorage.getItem('dune_admin_backend')
   if (stored) return stored.replace(/\/$/, '') + '/api/v1'
-  return '/api/v1'
+  return 'http://localhost:8080/api/v1'
 }
 const BASE = getApiBase()
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const token = await window.Clerk?.session?.getToken()
+  const headers: Record<string, string> = {}
+  if (body) headers['Content-Type'] = 'application/json'
+  if (token) headers['Authorization'] = `Bearer ${token}`
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
@@ -123,11 +133,14 @@ export const api = {
   blueprints: {
     list: () => req<BlueprintRow[]>('GET', '/blueprints'),
     exportUrl: (id: number) => `${BASE}/blueprints/${id}/export`,
-    import: (file: File, player_id: number) => {
+    import: async (file: File, player_id: number) => {
+      const token = await window.Clerk?.session?.getToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
       const fd = new FormData()
       fd.append('file', file)
       fd.append('player_id', String(player_id))
-      return fetch(`${BASE}/blueprints/import`, { method: 'POST', body: fd })
+      return fetch(`${BASE}/blueprints/import`, { method: 'POST', headers, body: fd })
         .then(r => r.json())
     },
   },

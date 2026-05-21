@@ -1,0 +1,210 @@
+package main
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"os"
+	"strings"
+)
+
+func runSetup() {
+	r := bufio.NewReader(os.Stdin)
+
+	ask := func(label, def string) string {
+		if def != "" {
+			fmt.Printf("  %s [%s]: ", label, def)
+		} else {
+			fmt.Printf("  %s: ", label)
+		}
+		line, _ := r.ReadString('\n')
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return def
+		}
+		return line
+	}
+
+	ok := func(msg string) { fmt.Printf("  ✓ %s\n", msg) }
+	fail := func(msg string) { fmt.Printf("  ✗ %s\n", msg) }
+
+	fmt.Println()
+	fmt.Println("=== dune-admin setup ===")
+	fmt.Println()
+
+	// ── 1. SSH key ─────────────────────────────────────────────────────────────
+
+	fmt.Println("Checking for SSH key...")
+	keyPath := resolveKeyPath()
+	if _, err := os.Stat(keyPath); err != nil {
+		fail("SSH key not found (checked ./sshKey, ~/.ssh/dune, ~/.ssh/id_ed25519)")
+		fmt.Println()
+		sshKeyPath = ask("Path to SSH private key", "")
+		if sshKeyPath == "" {
+			fmt.Fprintln(os.Stderr, "SSH key is required. Aborting.")
+			os.Exit(1)
+		}
+		if _, err := os.Stat(sshKeyPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Key not found at %s. Aborting.\n", sshKeyPath)
+			os.Exit(1)
+		}
+		keyPath = sshKeyPath
+	} else {
+		ok("SSH key: " + keyPath)
+		sshKeyPath = keyPath
+	}
+	fmt.Println()
+
+	// ── 2. Connection details ──────────────────────────────────────────────────
+
+	fmt.Println("SSH connection:")
+	sshHost = ask("VM host:port", sshHost)
+	sshUser = ask("SSH user", sshUser)
+	fmt.Println()
+
+	// ── 3. SSH dial ────────────────────────────────────────────────────────────
+
+	fmt.Printf("Connecting via SSH to %s...\n", sshHost)
+	client, err := dialSSH(keyPath)
+	if err != nil {
+		fail("SSH failed: " + err.Error())
+		fmt.Println()
+		fmt.Println("  Make sure:")
+		fmt.Println("    - The VM is reachable at the given host:port")
+		fmt.Println("    - The SSH key is authorized on the VM for that user")
+		fmt.Println("    - The SSH user has passwordless sudo for kubectl")
+		os.Exit(1)
+	}
+	ok("SSH connected")
+	fmt.Println()
+
+	// ── 4. Discover DB pod ─────────────────────────────────────────────────────
+
+	fmt.Println("Discovering database pod...")
+	ns, pod, podIP, err := discoverDBPod(client)
+	if err != nil {
+		fail("Pod discovery failed: " + err.Error())
+		fmt.Println()
+		fmt.Println("  Make sure the SSH user can run: sudo kubectl get pods -A")
+		os.Exit(1)
+	}
+	globalSSH = client
+	globalPodNS = ns
+	globalPod = pod
+	globalPodIP = podIP
+	ok("Database pod: " + pod)
+	fmt.Println()
+
+	// ── 5. Discover DB password ────────────────────────────────────────────────
+
+	fmt.Println("Discovering database password...")
+
+	discoveredUser := "postgres"
+	discoveredPass := ""
+
+	// Try 1: battlegroup YAML — application-level credentials.
+	// Derive the battlegroup name from the already-discovered pod name, then
+	// fall back to `battlegroup list` if that doesn't work.
+	var battlegroups []string
+	if bg := battlegroupFromPod(globalPod); bg != "" {
+		battlegroups = []string{bg}
+	} else {
+		battlegroups = listBattlegroups(client)
+	}
+
+	if len(battlegroups) == 0 {
+		fmt.Println("  Could not determine battlegroup name")
+	} else {
+		chosen := battlegroups[0]
+		if len(battlegroups) > 1 {
+			fmt.Println("  Available battlegroups:")
+			for i, bg := range battlegroups {
+				fmt.Printf("    [%d] %s\n", i+1, bg)
+			}
+			fmt.Println()
+			idxStr := ask(fmt.Sprintf("Which battlegroup? [1-%d]", len(battlegroups)), "1")
+			idx := 1
+			fmt.Sscanf(idxStr, "%d", &idx)
+			if idx >= 1 && idx <= len(battlegroups) {
+				chosen = battlegroups[idx-1]
+			}
+		}
+
+		yamlPath := fmt.Sprintf("~/.dune/%s.yaml", chosen)
+		if u, pass := extractPasswordFromYAML(client, yamlPath); pass != "" {
+			discoveredUser = u
+			discoveredPass = pass
+			ok(fmt.Sprintf("Password found in %s (user: %s)", yamlPath, u))
+		} else {
+			fail("No password found in " + yamlPath)
+		}
+	}
+
+	// Try 2: manual prompt
+	if discoveredPass == "" {
+		fmt.Println()
+		fmt.Println("  Could not auto-discover the database password.")
+		discoveredUser = ask("Database user", "postgres")
+		discoveredPass = ask("Database password", "")
+		if discoveredPass == "" {
+			fmt.Fprintln(os.Stderr, "Database password is required. Aborting.")
+			os.Exit(1)
+		}
+	}
+	fmt.Println()
+
+	// ── 6. Connect to database ─────────────────────────────────────────────────
+
+	fmt.Println("Connecting to database...")
+	dbUser = discoveredUser
+	dbPass = discoveredPass
+	pool, err := connectDB(context.Background(), discoveredUser, discoveredPass)
+	if err != nil {
+		fail("DB connect failed: " + err.Error())
+		fmt.Println()
+		fmt.Println("  The password may be wrong. Re-run 'make setup' to try again.")
+		os.Exit(1)
+	}
+	globalDB = pool
+	ok("Database connected as: " + dbUser)
+	fmt.Println()
+
+	// ── 7. Listen address ──────────────────────────────────────────────────────
+
+	fmt.Println("Server config:")
+	listenAddr = ask("HTTP listen address", listenAddr)
+	fmt.Println()
+
+	// ── 9. Write .env ──────────────────────────────────────────────────────────
+
+	lines := []string{
+		"# Generated by: go run . -setup",
+		"",
+		"SSH_HOST=" + sshHost,
+		"SSH_USER=" + sshUser,
+		"SSH_KEY=" + keyPath,
+		"",
+		fmt.Sprintf("DB_PORT=%d", dbPort),
+		"DB_USER=" + dbUser,
+		"DB_PASS=" + dbPass,
+		"DB_NAME=" + dbName,
+		"DB_SCHEMA=" + dbSchema,
+		"",
+		fmt.Sprintf("SCRIP_CURRENCY=%d", scripCurrencyID),
+		"LISTEN_ADDR=" + listenAddr,
+	}
+	content := strings.Join(lines, "\n") + "\n"
+
+	if err := os.WriteFile(".env", []byte(content), 0600); err != nil {
+		fail("Failed to write .env: " + err.Error())
+		os.Exit(1)
+	}
+	ok(".env written (chmod 600)")
+	fmt.Println()
+
+	fmt.Println("Setup complete.")
+	fmt.Println()
+	fmt.Println("  Build and run:  make build && ./dune-admin")
+	fmt.Println("  Run (no build): go run .")
+	fmt.Println()
+}
