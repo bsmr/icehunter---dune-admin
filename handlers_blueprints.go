@@ -284,13 +284,13 @@ func importBlueprintData(ctx context.Context, playerPawnID int64, bf blueprintFi
 		}
 		batch := &pgx.Batch{}
 		for i, inst := range bf.Instances[start:end] {
-			transform := fmt.Sprintf("[0:3]={%g,%g,%g,%g}",
+			transform := fmt.Sprintf("{%g,%g,%g,%g}",
 				float32(inst.X), float32(inst.Y), float32(inst.Z), float32(inst.Rotation))
 			batch.Queue(`
 				INSERT INTO dune.building_blueprint_instances
 					(building_blueprint_id, instance_id, building_type, transform, hologram, provides_stability, health)
 				VALUES ($1, $2, $3, $4::real[], true, false, 0)`,
-				blueprintID, start+i, inst.BuildingType, transform)
+				blueprintID, start+i+1, inst.BuildingType, transform)
 		}
 		br := tx.SendBatch(ctx, batch)
 		for i := start; i < end; i++ {
@@ -310,14 +310,14 @@ func importBlueprintData(ctx context.Context, playerPawnID int64, bf blueprintFi
 		}
 		batch := &pgx.Batch{}
 		for i, pl := range bf.Placeables[start:end] {
-			transform := fmt.Sprintf("[0:5]={%g,%g,%g,%g,%g,%g}",
+			transform := fmt.Sprintf("{%g,%g,%g,%g,%g,%g}",
 				float32(pl.X), float32(pl.Y), float32(pl.Z),
 				float32(pl.RX), float32(pl.RY), float32(pl.RZ))
 			batch.Queue(`
 				INSERT INTO dune.building_blueprint_placeables
 					(building_blueprint_id, placeable_id, building_type, transform, hologram)
 				VALUES ($1, $2, $3, $4::real[], true)`,
-				blueprintID, start+i, pl.BuildingType, transform)
+				blueprintID, start+i+1, pl.BuildingType, transform)
 		}
 		br := tx.SendBatch(ctx, batch)
 		for i := start; i < end; i++ {
