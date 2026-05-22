@@ -1300,7 +1300,9 @@ func cmdProgressionUnlock(actorID int64, faction, preset string) Cmd {
 			return msgMutate{err: fmt.Errorf("player %d has no controller actor — cannot set faction tier", actorID)}
 		}
 
-		nodes := []string{
+		// These are gameplay tags (AddPlayerFlags in BP_ProgressionUnlockComponent).
+		// They belong in player_tags, not journey_story_node.
+		playerTags := []string{
 			"Contract.Tracking.FactionStory.R4C1Completed",
 			"Contract.Tracking.FactionStory.R4C2Completed",
 			"Contract.Tracking.FactionStory.R4C3Completed",
@@ -1310,7 +1312,7 @@ func cmdProgressionUnlock(actorID int64, faction, preset string) Cmd {
 			dialogueFlag,
 		}
 		if setTier {
-			nodes = append(nodes, "Journey.LandsraadContractsUnlocked")
+			playerTags = append(playerTags, "Journey.LandsraadContractsUnlocked")
 		}
 
 		tx, err := globalDB.Begin(ctx)
@@ -1319,31 +1321,12 @@ func cmdProgressionUnlock(actorID int64, faction, preset string) Cmd {
 		}
 		defer tx.Rollback(ctx)
 
-		for _, nodeID := range nodes {
-			res, err := tx.Exec(ctx, `
-				UPDATE dune.journey_story_node
-				SET complete_condition_state = 'true'::jsonb,
-				    reveal_condition_state   = 'true'::jsonb
-				WHERE account_id = $1
-				  AND (story_node_id = $2 OR story_node_id LIKE $2 || '.%')`,
-				accountID, nodeID)
+		for _, tag := range playerTags {
+			_, err = tx.Exec(ctx,
+				`INSERT INTO dune.player_tags (account_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+				accountID, tag)
 			if err != nil {
-				return msgMutate{err: fmt.Errorf("complete node %s: %w", nodeID, err)}
-			}
-			if res.RowsAffected() == 0 {
-				_, err = tx.Exec(ctx, `
-					INSERT INTO dune.journey_story_node
-						(account_id, story_node_id, has_pending_reward,
-						 complete_condition_state, reveal_condition_state,
-						 fail_condition_state, metadata_state, reset_group)
-					VALUES ($1, $2, false,
-						'true'::jsonb, 'true'::jsonb,
-						'{}'::jsonb, '{}'::jsonb,
-						'Default'::dune.JourneyStoryResetGroup)`,
-					accountID, nodeID)
-				if err != nil {
-					return msgMutate{err: fmt.Errorf("insert node %s: %w", nodeID, err)}
-				}
+				return msgMutate{err: fmt.Errorf("insert player tag %s: %w", tag, err)}
 			}
 		}
 
@@ -1384,8 +1367,8 @@ func cmdProgressionUnlock(actorID int64, faction, preset string) Cmd {
 			tierMsg += fmt.Sprintf(" + rep set to tier 19 on controller %d", controllerID)
 		}
 		return msgMutate{ok: fmt.Sprintf(
-			"Progression unlock (%s/%s) applied to actor %d: %d nodes%s — takes effect on next login",
-			preset, faction, actorID, len(nodes), tierMsg)}
+			"Progression unlock (%s/%s) applied to actor %d: %d tags%s — takes effect on next login",
+			preset, faction, actorID, len(playerTags), tierMsg)}
 	}
 }
 
