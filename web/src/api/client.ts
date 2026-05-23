@@ -168,7 +168,7 @@ export const api = {
   },
 
   storage: {
-    list: () => req<{id: number; class: string; map: string; item_count: number}[]>('GET', '/storage'),
+    list: () => req<{id: number; name: string; class: string; map: string; item_count: number}[]>('GET', '/storage'),
     items: (id: number) => req<InventoryItem[]>('GET', `/storage/${id}/items`),
     giveItem: (id: number, template: string, qty: number, quality: number) =>
       req<MutateResult>('POST', `/storage/${id}/give-item`, { template, qty, quality }),

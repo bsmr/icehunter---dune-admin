@@ -2295,7 +2295,7 @@ func cmdGetPlayerVehicles(controllerID int64) Cmd {
 		rows, err := globalDB.Query(context.Background(), `
 			SELECT pa.actor_id, a.class, COALESCE(a.map, ''),
 			       COALESCE(rv.chassis_durability::float8, 1.0),
-			       COALESCE(rv.vehicle_name, ''),
+			       COALESCE(pa.actor_name, rv.vehicle_name, ''),
 			       (rv.vehicle_id IS NOT NULL) AS is_recovered,
 			       false AS is_backup
 			FROM dune.permission_actor pa
@@ -2335,7 +2335,6 @@ func cmdGetPlayerVehicles(controllerID int64) Cmd {
 		return msgVehicles{rows: out}
 	}
 }
-
 
 func cmdRepairItem(itemID int64) Cmd {
 	return func() Msg {
@@ -2481,7 +2480,6 @@ func cmdListPartitions() Cmd {
 	}
 }
 
-
 func cmdTeleportPlayer(flsID string, locationName string) Cmd {
 	return func() Msg {
 		if globalDB == nil {
@@ -2524,6 +2522,7 @@ func cmdTeleportPlayer(flsID string, locationName string) Cmd {
 
 type storageContainerRow struct {
 	ID        int64  `json:"id"`
+	Name      string `json:"name"`
 	Class     string `json:"class"`
 	Map       string `json:"map"`
 	ItemCount int64  `json:"item_count"`
@@ -2540,10 +2539,12 @@ func cmdListStorageContainers() Msg {
 	}
 	rows, err := globalDB.Query(context.Background(), `
 		SELECT a.id,
+		       COALESCE(MAX(pa.actor_name), '') AS name,
 		       a.class,
 		       COALESCE(a.map, ''),
 		       COUNT(i.id) AS item_count
 		FROM dune.actors a
+		LEFT JOIN dune.permission_actor pa ON pa.actor_id = a.id
 		LEFT JOIN dune.inventories inv ON inv.actor_id = a.id
 		LEFT JOIN dune.items i ON i.inventory_id = inv.id
 		WHERE a.class ILIKE '%StorageContainer%'
@@ -2556,7 +2557,7 @@ func cmdListStorageContainers() Msg {
 	var out []storageContainerRow
 	for rows.Next() {
 		var r storageContainerRow
-		if err := rows.Scan(&r.ID, &r.Class, &r.Map, &r.ItemCount); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.Class, &r.Map, &r.ItemCount); err != nil {
 			continue
 		}
 		out = append(out, r)

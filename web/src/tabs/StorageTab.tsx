@@ -3,7 +3,7 @@ import { Button, Modal, Spinner, toast } from '@heroui/react'
 import { api } from '../api/client'
 import type { InventoryItem } from '../api/client'
 
-type Container = { id: number; class: string; map: string; item_count: number }
+type Container = { id: number; name: string; class: string; map: string; item_count: number }
 
 function shortClass(cls: string): string {
   const m = cls.match(/BP_(\w+StorageContainer)/)
@@ -101,16 +101,16 @@ export default function StorageTab() {
                 color: 'var(--color-text)',
               }}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-mono font-semibold" style={{ color: selected?.id === c.id ? 'var(--color-primary)' : 'var(--color-text)' }}>
-                  #{c.id}
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-semibold truncate" style={{ color: selected?.id === c.id ? 'var(--color-primary)' : 'var(--color-text)' }}>
+                  {c.name || `#${c.id}`}
                 </span>
-                <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#2a2418', color: 'var(--color-text-dim)' }}>
+                <span className="text-xs px-1.5 py-0.5 rounded shrink-0" style={{ background: '#2a2418', color: 'var(--color-text-dim)' }}>
                   {c.item_count} items
                 </span>
               </div>
               <div className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-dim)' }}>
-                {shortClass(c.class)} · {c.map}
+                {c.name ? `#${c.id} · ` : ''}{shortClass(c.class)} · {c.map}
               </div>
             </button>
           ))}
@@ -128,10 +128,10 @@ export default function StorageTab() {
             <div className="flex items-center justify-between mb-3 shrink-0">
               <div>
                 <h2 className="text-base font-semibold" style={{ color: 'var(--color-primary)' }}>
-                  Container #{selected.id}
+                  {selected.name || `Container #${selected.id}`}
                 </h2>
                 <p className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
-                  {shortClass(selected.class)} · {selected.map}
+                  {selected.name ? `#${selected.id} · ` : ''}{shortClass(selected.class)} · {selected.map}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -273,7 +273,7 @@ function AddItemsModal({ container, open, onClose, onSuccess, onRefresh }: {
         <Modal.Container size="full">
           <Modal.Dialog style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <Modal.CloseTrigger />
-            <Modal.Header><Modal.Heading>Add Items — Container #{container.id}</Modal.Heading></Modal.Header>
+            <Modal.Header><Modal.Heading>Add Items — {container.name || `Container #${container.id}`}</Modal.Heading></Modal.Header>
             <Modal.Body style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px 16px' }}>
               {loading ? (
                 <div className="flex justify-center py-6"><Spinner size="lg" /></div>
