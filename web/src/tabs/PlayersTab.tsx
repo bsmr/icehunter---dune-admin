@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { Button, Modal, Spinner, toast, Select, ListBox } from '@heroui/react'
 import { api } from '../api/client'
 import allGameplayTags from '../data/gameplayTags.json'
+type PacksData = { packs: Record<string, { name: string; category: string; tier: number; items: { template: string; qty: number; quality: number }[] }> }
 
 function useDebounce<T>(value: T, delay = 300): T {
   const [debounced, setDebounced] = useState(value)
@@ -579,6 +580,7 @@ const handleRepair = async (item: InventoryItem) => {
 
 function GiveItemsModal({ player, open, onClose }: { player: Player; open: boolean; onClose: () => void }) {
   const [templates, setTemplates] = useState<{id: string; name: string}[]>([])
+  const [packsData, setPacksData] = useState<PacksData>({ packs: {} })
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
@@ -592,6 +594,7 @@ function GiveItemsModal({ player, open, onClose }: { player: Player; open: boole
     if (!open) return
     setLoading(true)
     api.players.templates().then(setTemplates).catch(() => {}).finally(() => setLoading(false))
+    fetch('/packs.json').then(r => r.json()).then(setPacksData).catch(() => setPacksData({ packs: {} }))
     setQuery(''); setSelected(''); setQty(1); setQuality(0); setStaged([]); setResult(null)
   }, [open])
 
@@ -600,6 +603,18 @@ function GiveItemsModal({ player, open, onClose }: { player: Player; open: boole
     const q = query.toLowerCase()
     return templates.filter(t => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)).slice(0, 100)
   }, [templates, query])
+
+  const groupedPacks = useMemo(() => {
+    const groups: Record<string, { id: string; name: string; tier: number }[]> = {}
+    for (const [id, pack] of Object.entries(packsData.packs)) {
+      if (!groups[pack.category]) groups[pack.category] = []
+      groups[pack.category].push({ id, name: pack.name, tier: pack.tier })
+    }
+    for (const cat of Object.keys(groups)) {
+      groups[cat].sort((a, b) => a.tier - b.tier)
+    }
+    return groups
+  }, [packsData])
 
   const pick = (t: {id: string; name: string}) => {
     setSelected(t.id)
@@ -650,6 +665,26 @@ function GiveItemsModal({ player, open, onClose }: { player: Player; open: boole
                 <div className="flex justify-center py-6"><Spinner size="lg" /></div>
               ) : (
                 <div className="flex flex-col gap-3 h-full overflow-hidden">
+                  <div className="shrink-0">
+                    <select
+                      value=""
+                      onChange={e => {
+                        const pack = packsData.packs[e.target.value as keyof typeof packsData.packs]
+                        if (pack) setStaged(prev => [...prev, ...pack.items])
+                      }}
+                      className="w-full rounded px-3 py-1.5 text-sm border"
+                      style={{ background: 'var(--color-surface)', color: 'var(--color-text)', borderColor: '#2a2418', outline: 'none', cursor: 'pointer' }}
+                    >
+                      <option value="">Load Pack…</option>
+                      {Object.entries(groupedPacks).sort(([a], [b]) => a.localeCompare(b)).map(([cat, packs]) => (
+                        <optgroup key={cat} label={cat.replace(/-/g, ' ')}>
+                          {packs.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
                   <div className="flex items-end gap-2 shrink-0">
                     <div className="flex flex-col gap-0.5 flex-1">
                       <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>Template</span>
