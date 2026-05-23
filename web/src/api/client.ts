@@ -134,6 +134,10 @@ export const api = {
       req<MutateResult>('POST', '/players/journey/reset', { account_id, node_id }),
     journeyWipe: (account_id: number) =>
       req<MutateResult>('POST', '/players/journey/wipe', { account_id }),
+    completeContract: (account_id: number, contract_id: string) =>
+      req<MutateResult>('POST', '/players/contract/complete', { account_id, contract_id }),
+    completeContracts: (account_id: number, contract_ids: string[]) =>
+      req<MutateResult>('POST', '/players/contracts/complete', { account_id, contract_ids }),
     deleteTutorials: (player_id: number) =>
       req<MutateResult>('POST', '/players/delete-tutorials', { player_id }),
     wipeCodex: (account_id: number) =>
@@ -152,6 +156,10 @@ export const api = {
       req<MutateResult>('POST', '/players/teleport', { fls_id, partition_label }),
     events: (id: number) => req<GameEvent[]>('GET', `/players/${id}/events`),
     dungeons: (id: number) => req<DungeonRecord[]>('GET', `/players/${id}/dungeons`),
+  },
+
+  contracts: {
+    list: () => req<{id: string; alias: string; tag_count: number}[]>('GET', '/contracts'),
   },
 
   database: {

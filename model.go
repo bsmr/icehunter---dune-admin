@@ -75,6 +75,17 @@ type itemDataFile struct {
 	Items           map[string]itemRule `json:"items"`
 }
 
+// tagsDataFile is the output of dune-item-data/build-tags-data.sh — maps from
+// journey story node IDs / contract names to the gameplay tags those in-game
+// completions would emit. The admin tool uses these to apply tags when an
+// admin clicks Mark Complete (since the DB-only completion bypasses the
+// in-game effects).
+type tagsDataFile struct {
+	JourneyNodeTags map[string][]string `json:"journey_node_tags"`
+	ContractTags    map[string][]string `json:"contract_tags"`
+	ContractAliases map[string]string   `json:"contract_aliases"`
+}
+
 type blueprintRow struct {
 	ID         int64  `json:"id"`
 	OwnerName  string `json:"owner_name"`

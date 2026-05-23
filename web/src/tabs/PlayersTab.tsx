@@ -19,11 +19,12 @@ import type {
 } from '../api/client'
 
 type Sidebar = 'players' | 'currency' | 'factions' | 'specs' | 'online'
-type ActionSection = 'resources' | 'specs' | 'journey' | 'admin' | 'tags' | 'history'
+type ActionSection = 'resources' | 'specs' | 'progression' | 'journey' | 'admin' | 'tags' | 'history'
 
 const ACTION_SECTIONS: { key: ActionSection; label: string }[] = [
   { key: 'resources', label: 'Stats' },
   { key: 'specs', label: 'Specs' },
+  { key: 'progression', label: 'Progression' },
   { key: 'journey', label: 'Journey' },
   { key: 'admin', label: 'Admin' },
   { key: 'tags', label: 'Tags' },
@@ -804,6 +805,13 @@ function PlayerActionsModal({ player, open, onClose }: { player: Player; open: b
   const [unlockFaction, setUnlockFaction] = useState('atreides')
   const [unlockPreset, setUnlockPreset] = useState('ch3_start')
 
+  // Contract picker
+  const [contractCatalog, setContractCatalog] = useState<{id: string; alias: string; tag_count: number}[]>([])
+  const [contractCatalogLoaded, setContractCatalogLoaded] = useState(false)
+  const [contractCatalogError, setContractCatalogError] = useState('')
+  const [contractSearch, setContractSearch] = useState('')
+  const [selectedContracts, setSelectedContracts] = useState<string[]>([])
+
   // Tags
   const [tags, setTags] = useState<string[]>([])
   const [tagsLoaded, setTagsLoaded] = useState(false)
@@ -852,7 +860,12 @@ api.players.partitions().then(setPartitions).catch(() => {})
         .catch((e: unknown) => toast.danger(e instanceof Error ? e.message : String(e)))
         .finally(() => setNodesLoading(false))
     }
-  }, [section, nodesLoaded, open, player.account_id])
+    if (section === 'progression' && !contractCatalogLoaded && open) {
+      api.contracts.list()
+        .then(c => { setContractCatalog(c); setContractCatalogLoaded(true); setContractCatalogError('') })
+        .catch((e: unknown) => { setContractCatalogError(e instanceof Error ? e.message : String(e)); setContractCatalogLoaded(true) })
+    }
+  }, [section, nodesLoaded, contractCatalogLoaded, open, player.account_id])
 
   useEffect(() => {
     if (section === 'specs' && !specsLoaded && open) {
@@ -1122,8 +1135,8 @@ api.players.partitions().then(setPartitions).catch(() => {})
                   </div>
                 )}
 
-                {section === 'journey' && (
-                  <div className="flex flex-col gap-3 flex-1 min-h-0">
+                {section === 'progression' && (
+                  <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
                     {/* ── Progression Unlock ─────────────────────────────────── */}
                     <div className="rounded-lg p-3 shrink-0 flex flex-col gap-2" style={{ background: '#0f0d09', border: '1px solid #2a2418' }}>
                       <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-primary)' }}>Progression Unlock</div>
@@ -1156,6 +1169,140 @@ api.players.partitions().then(setPartitions).catch(() => {})
                         </Button>
                       </div>
                     </div>
+
+                    {/* ── Unlock Trainer ─────────────────────────────────────── */}
+                    {contractCatalogLoaded && !contractCatalogError && (
+                      <div className="rounded-lg p-3 shrink-0 flex flex-col gap-2" style={{ background: '#0f0d09', border: '1px solid #2a2418' }}>
+                        <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-primary)' }}>Unlock Trainer</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-dim)' }}>One click per trainer applies every Trainer_<i>X</i>_* contract&apos;s completion tags (both T1 and T2 in one shot).</div>
+                        <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                          {(['BeneGesserit', 'Mentat', 'Planetologist', 'Swordmaster', 'Trooper'] as const).map(trainer => {
+                            const re = new RegExp(`^Trainer_${trainer}\\d+(_|$)`)
+                            const matches = contractCatalog
+                              .map(c => c.alias || c.id)
+                              .filter(id => re.test(id))
+                            if (matches.length === 0) return null
+                            return (
+                              <Button
+                                key={trainer}
+                                size="sm"
+                                variant="secondary"
+                                isDisabled={busy}
+                                onPress={() => run(
+                                  () => api.players.completeContracts(player.account_id, matches),
+                                  `Unlocked ${trainer} (${matches.length} contracts) for ${player.name}`
+                                ).then(() => { setNodesLoaded(false) })}
+                              >
+                                {trainer} <span style={{ color: 'var(--color-text-dim)' }}>({matches.length})</span>
+                              </Button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Complete Contract(s) ───────────────────────────────── */}
+                    <div className="rounded-lg p-3 shrink-0 flex flex-col gap-2" style={{ background: '#0f0d09', border: '1px solid #2a2418' }}>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-primary)' }}>Complete Contract(s)</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+                          {contractCatalogError
+                            ? <span style={{ color: '#c66' }}>load failed: {contractCatalogError} — restart the server</span>
+                            : contractCatalogLoaded ? `${contractCatalog.length} contracts` : 'loading…'}
+                        </div>
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--color-text-dim)' }}>Applies the contract&apos;s <code>AddedFlagsOnCompletion</code> tags + tier-promotion side effects. Multi-select supported.</div>
+
+                      {/* Selected pills */}
+                      {selectedContracts.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedContracts.map(id => (
+                            <span key={id} className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-mono"
+                              style={{ background: '#2a2418', color: 'var(--color-text)' }}>
+                              {id}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedContracts(prev => prev.filter(x => x !== id))}
+                                className="hover:text-white"
+                                style={{ color: 'var(--color-text-dim)' }}
+                                aria-label={`Remove ${id}`}
+                              >×</button>
+                            </span>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedContracts([])}
+                            className="text-xs underline"
+                            style={{ color: 'var(--color-text-dim)' }}
+                          >clear all</button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input
+                          className="flex-1 rounded px-2 py-1.5 text-xs border min-w-48"
+                          style={{ background: '#0d0b07', color: 'var(--color-text)', borderColor: '#2a2418', outline: 'none' }}
+                          placeholder="Filter contracts (e.g. Trainer_Mentat, Atre_Rank01)..."
+                          value={contractSearch}
+                          onChange={e => setContractSearch(e.target.value)}
+                        />
+                        <Button size="sm" variant="secondary" isDisabled={busy || selectedContracts.length === 0}
+                          onPress={() => run(
+                            () => api.players.completeContracts(player.account_id, selectedContracts),
+                            `Completed ${selectedContracts.length} contract(s) for ${player.name}`
+                          ).then(() => { setSelectedContracts([]); setNodesLoaded(false) })}>
+                          Apply Contract(s) ({selectedContracts.length})
+                        </Button>
+                      </div>
+
+                      {/* Browse / filter list */}
+                      {contractCatalogLoaded && !contractCatalogError && (
+                        <div className="max-h-64 overflow-y-auto rounded" style={{ border: '1px solid #1a1610', background: '#0a0806' }}>
+                          {(() => {
+                            const q = contractSearch.trim().toLowerCase()
+                            const matches = contractCatalog.filter(c =>
+                              q === '' || c.id.toLowerCase().includes(q) || (c.alias && c.alias.toLowerCase().includes(q))
+                            )
+                            const shown = matches.slice(0, 100)
+                            if (matches.length === 0) {
+                              return <div className="px-2 py-3 text-xs text-center" style={{ color: 'var(--color-text-dim)' }}>No matching contracts</div>
+                            }
+                            return (
+                              <>
+                                {shown.map(c => {
+                                  const id = c.alias || c.id
+                                  const picked = selectedContracts.includes(id)
+                                  return (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() => setSelectedContracts(prev =>
+                                        picked ? prev.filter(x => x !== id) : [...prev, id]
+                                      )}
+                                      className="flex w-full items-center justify-between px-2 py-1 text-xs font-mono hover:bg-[#1a1610]"
+                                      style={{ color: picked ? 'var(--color-primary)' : 'var(--color-text)', background: picked ? '#16140e' : 'transparent' }}
+                                    >
+                                      <span>{picked ? '✓ ' : '  '}{id}</span>
+                                      <span style={{ color: 'var(--color-text-dim)' }}>{c.tag_count} tag{c.tag_count === 1 ? '' : 's'}</span>
+                                    </button>
+                                  )
+                                })}
+                                {matches.length > shown.length && (
+                                  <div className="px-2 py-1 text-xs text-center" style={{ color: 'var(--color-text-dim)' }}>
+                                    +{matches.length - shown.length} more — refine the filter
+                                  </div>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {section === 'journey' && (
+                  <div className="flex flex-col gap-3 flex-1 min-h-0">
                     <div className="flex items-center gap-3 shrink-0">
                       <input
                         className="flex-1 rounded px-2 py-1.5 text-xs border"
