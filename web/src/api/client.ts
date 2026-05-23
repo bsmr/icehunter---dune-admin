@@ -54,6 +54,7 @@ export type BlueprintRow = { id: number; owner_name: string; item_id: number; pi
 export type BaseRow = { id: number; name: string; pieces: number; placeables: number }
 export type LogPod = { namespace: string; name: string }
 export type MutateResult = { ok: string }
+export type BulkGiveResult = { given: string[]; skipped: { template: string; reason: string }[] }
 export type BGOutput = { output: string }
 export type VehicleRow = { id: number; class: string; map: string; chassis_durability: number; vehicle_name: string; is_recovered: boolean; is_backup: boolean }
 export type CheatEntry = { fls_id: string; cheat_type: string; event_time: string; character_name: string }
@@ -97,6 +98,8 @@ export const api = {
     journey: (accountId: number) => req<JourneyNode[]>('GET', `/players/${accountId}/journey`),
     giveItem: (player_id: number, template: string, qty: number, quality: number) =>
       req<MutateResult>('POST', '/players/give-item', { player_id, template, qty, quality }),
+    giveItems: (player_id: number, items: { template: string; qty: number; quality: number }[]) =>
+      req<BulkGiveResult>('POST', '/players/give-items', { player_id, items }),
     grantLive: (controller_id: number, template: string, amount: number) =>
       req<MutateResult>('POST', '/players/grant-live', { controller_id, template, amount }),
     giveCurrency: (player_id: number, amount: number) =>
@@ -169,6 +172,8 @@ export const api = {
     items: (id: number) => req<InventoryItem[]>('GET', `/storage/${id}/items`),
     giveItem: (id: number, template: string, qty: number, quality: number) =>
       req<MutateResult>('POST', `/storage/${id}/give-item`, { template, qty, quality }),
+    giveItems: (id: number, items: { template: string; qty: number; quality: number }[]) =>
+      req<BulkGiveResult>('POST', `/storage/${id}/give-items`, { items }),
   },
 
   blueprints: {
