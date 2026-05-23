@@ -590,7 +590,7 @@ function GiveItemModal({ player, open, onClose }: { player: Player; open: boolea
     if (!open) return
     setLoading(true)
     api.players.templates().then(setTemplates).catch(() => {}).finally(() => setLoading(false))
-    setQuery(''); setSelected(''); setQty(1); setQuality(1)
+    setQuery(''); setSelected(''); setQty(1); setQuality(0)
   }, [open])
 
   const filtered = useMemo(() => {
