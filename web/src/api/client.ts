@@ -409,6 +409,10 @@ export type ScheduledBackups = {
 export type WebInterface = {
   label: string
   url: string
+  // proxyPort, when set, is the local dune-admin port that reverse-proxies this
+  // service over the mesh tunnel. The SPA opens it via the current host on that
+  // port, so the (possibly unresolvable) game-side url is bypassed.
+  proxyPort?: number
 }
 export type GuildSummary = {
   guild_id: number

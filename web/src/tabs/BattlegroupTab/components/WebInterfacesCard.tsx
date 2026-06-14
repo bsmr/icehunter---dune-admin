@@ -10,8 +10,14 @@ import { HealthCard } from './HealthCard'
 
 const InterfaceRow: React.FC<{ item: WebInterface }> = ({ item }) => {
   const { t } = useTranslation()
+  // Proxied entries (proxyPort set) are reached through dune-admin's own host on
+  // the assigned port — bypassing the game host the operator can't resolve/route.
+  // The host comes from window.location, so no backend knows the browser-facing host.
+  const openURL = item.proxyPort
+    ? `${window.location.protocol}//${window.location.hostname}:${item.proxyPort}/`
+    : item.url
   const copy = () => {
-    copyText(item.url).then((ok) =>
+    copyText(openURL).then((ok) =>
       (ok ? toast.success(t('serverHealth.copied')) : toast.danger(t('serverHealth.copyFailed'))))
   }
   return (
@@ -19,12 +25,12 @@ const InterfaceRow: React.FC<{ item: WebInterface }> = ({ item }) => {
       <Icon name="external-link" className="size-4 text-accent" />
       <div className="flex flex-col min-w-0 flex-1">
         <span className="text-sm font-semibold">{item.label}</span>
-        <span className="text-xs text-muted font-mono truncate">{item.url}</span>
+        <span className="text-xs text-muted font-mono truncate">{openURL}</span>
       </div>
       <Button size="sm" variant="ghost" isIconOnly aria-label={t('serverHealth.copy')} onPress={copy}>
         <Icon name="copy" />
       </Button>
-      <Button size="sm" variant="outline" onPress={() => window.open(item.url, '_blank', 'noopener')}>
+      <Button size="sm" variant="outline" onPress={() => window.open(openURL, '_blank', 'noopener')}>
         {t('serverHealth.open')}
       </Button>
     </div>

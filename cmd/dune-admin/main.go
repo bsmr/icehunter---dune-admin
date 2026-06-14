@@ -959,6 +959,13 @@ func main() {
 	// Web interfaces (#155): load the operator-configured Server Health links.
 	loadWebInterfaces()
 
+	// Mesh web proxy: serve each discovered/configured web interface from a local
+	// port over the executor tunnel, so the operator's browser reaches them without
+	// resolving the game host or routing into the mesh.
+	webIfaces := append(append([]webInterface{}, getWebInterfaces()...), discoveredWebInterfaces(context.Background())...)
+	webProxyStop := startWebProxies(resolveProxyTargets(webIfaces, listenPortNum()), dialThroughExecutor)
+	defer webProxyStop()
+
 	initLocationStore()
 	initGivePacksStore()
 	initEventStore()
