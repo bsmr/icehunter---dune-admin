@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -24,12 +26,24 @@ func TestResolveProxyTargets(t *testing.T) {
 	}
 	got := resolveProxyTargets(ifaces, 8080)
 	want := []proxyTarget{
-		{label: "File Browser", dialAddr: "10.0.0.5:18888", port: 8090},
-		{label: "Battlegroup Director", dialAddr: "10.0.0.5:31003", port: 8091},
-		{label: "Wiki", dialAddr: "wiki.example:443", port: 8092},
+		{label: "File Browser", scheme: "http", dialAddr: "10.0.0.5:18888", port: 8090},
+		{label: "Battlegroup Director", scheme: "http", dialAddr: "10.0.0.5:31003", port: 8091},
+		{label: "Wiki", scheme: "https", dialAddr: "wiki.example:443", port: 8092}, // https preserved
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got  %+v\nwant %+v", got, want)
+	}
+}
+
+// resolveProxyTargets yields no targets when the listen port can't be derived
+// (port <= 0) — proxying with a bogus low/privileged port base is worse than off.
+func TestResolveProxyTargets_NoPortBase(t *testing.T) {
+	ifaces := []webInterface{{Label: "Director", Target: "10.0.0.5:31003"}}
+	if got := resolveProxyTargets(ifaces, 0); got != nil {
+		t.Errorf("listenPort 0: got %+v, want nil", got)
+	}
+	if got := resolveProxyTargets(ifaces, -1); got != nil {
+		t.Errorf("listenPort -1: got %+v, want nil", got)
 	}
 }
 
@@ -45,11 +59,11 @@ func TestWithProxyPorts(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("got %d entries, want 2", len(got))
 	}
-	if got[0].Label != "Battlegroup Director" || got[0].ProxyPort != 8090 {
-		t.Errorf("director = %+v, want proxyPort 8090", got[0])
+	if got[0].Label != "Battlegroup Director" || got[0].ProxyPort != 8090 || got[0].ProxyScheme != "http" {
+		t.Errorf("director = %+v, want proxyPort 8090 + proxyScheme http", got[0])
 	}
-	if got[1].ProxyPort != 0 {
-		t.Errorf("local proxyPort = %d, want 0 (not proxied)", got[1].ProxyPort)
+	if got[1].ProxyPort != 0 || got[1].ProxyScheme != "" {
+		t.Errorf("local = %+v, want proxyPort 0 + empty scheme (not proxied)", got[1])
 	}
 }
 
@@ -69,6 +83,79 @@ func TestNewRootProxy_PassesAbsoluteAssetPaths(t *testing.T) {
 		if rec.Code != http.StatusOK || rec.Body.String() != "path="+p {
 			t.Errorf("%s → %d %q", p, rec.Code, rec.Body.String())
 		}
+	}
+}
+
+// newRootProxy must speak HTTPS upstream for an https target (not plain HTTP to
+// :443), so hand-configured https interfaces proxy correctly.
+func TestNewRootProxy_HTTPSUpstream(t *testing.T) {
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, "tls-path=%s", r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	// The proxy transport clones http.DefaultTransport; make that clone trust the
+	// test server's own cert (no InsecureSkipVerify) for this (non-parallel) test.
+	pool := x509.NewCertPool()
+	pool.AddCert(upstream.Certificate())
+	prev := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = prev })
+	tr := prev.(*http.Transport).Clone()
+	tr.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	http.DefaultTransport = tr
+
+	u, _ := url.Parse(upstream.URL) // https://127.0.0.1:<port>
+	h := newRootProxy(u, net.Dial)
+
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest("GET", "/Script/app.js", nil))
+	// Success proves TLS was spoken upstream — a plain-HTTP dial to the TLS port
+	// would fail the handshake and yield 502.
+	if rec.Code != http.StatusOK || rec.Body.String() != "tls-path=/Script/app.js" {
+		t.Errorf("https upstream → %d %q, want 200 tls-path=/Script/app.js", rec.Code, rec.Body.String())
+	}
+}
+
+// listenHost extracts the bind interface from listenAddr so proxy ports inherit
+// the main server's exposure (localhost-bound UI → localhost-bound proxies).
+func TestListenHost(t *testing.T) {
+	prev := listenAddr
+	t.Cleanup(func() { listenAddr = prev })
+	for addr, want := range map[string]string{
+		"127.0.0.1:8080": "127.0.0.1",
+		":8080":          "",
+		"0.0.0.0:8080":   "0.0.0.0",
+		"bogus":          "", // unparseable → empty
+	} {
+		listenAddr = addr
+		if got := listenHost(); got != want {
+			t.Errorf("listenHost(%q) = %q, want %q", addr, got, want)
+		}
+	}
+}
+
+// startWebProxies binds to the listenAddr host: a localhost-bound main server
+// must not expose the proxy ports on other interfaces.
+func TestStartWebProxies_BindsToListenHost(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	uu, _ := url.Parse(upstream.URL)
+
+	prevCfg := loadedConfig
+	prevAddr := listenAddr
+	t.Cleanup(func() { loadedConfig = prevCfg; listenAddr = prevAddr })
+	loadedConfig = appConfig{} // auth off
+	listenAddr = "127.0.0.1:18080"
+
+	port := freePort(t)
+	stop := startWebProxies([]proxyTarget{{label: "x", scheme: "http", dialAddr: uu.Host, port: port}}, net.Dial)
+	defer stop()
+
+	// reachable on the bound loopback interface
+	if body := httpGet(t, fmt.Sprintf("http://127.0.0.1:%d/", port)); body != "ok" {
+		t.Fatalf("proxy on 127.0.0.1 body = %q, want ok", body)
 	}
 }
 

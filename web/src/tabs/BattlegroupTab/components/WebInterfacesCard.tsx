@@ -12,9 +12,11 @@ const InterfaceRow: React.FC<{ item: WebInterface }> = ({ item }) => {
   const { t } = useTranslation()
   // Proxied entries (proxyPort set) are reached through dune-admin's own host on
   // the assigned port — bypassing the game host the operator can't resolve/route.
-  // The host comes from window.location, so no backend knows the browser-facing host.
+  // The host comes from window.location; the scheme comes from the backend
+  // (proxyScheme), NOT window.location.protocol: the proxy listeners are always
+  // plain HTTP, so an HTTPS-served dashboard must still open them over http.
   const openURL = item.proxyPort
-    ? `${window.location.protocol}//${window.location.hostname}:${item.proxyPort}/`
+    ? `${item.proxyScheme ?? 'http'}://${window.location.hostname}:${item.proxyPort}/`
     : item.url
   const copy = () => {
     copyText(openURL).then((ok) =>

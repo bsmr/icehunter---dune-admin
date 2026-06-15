@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -23,30 +22,37 @@ import (
 // (/Script/…, /static/…) resolve correctly.
 
 // proxyTarget is a resolved web interface to reverse-proxy: its label, the
-// host:port to Dial through the executor, and the local listener port.
+// upstream scheme (http/https), the host:port to Dial through the executor, and
+// the local listener port.
 type proxyTarget struct {
 	label    string
+	scheme   string // upstream scheme: "http" or "https"
 	dialAddr string
 	port     int
 }
 
 // resolveProxyTargets selects the proxyable web interfaces, sorts them
 // deterministically by dial address, and assigns port = listenPort+10+index.
+// A listenPort <= 0 yields no targets (the port base can't be derived).
 //
 // Proxyable = an entry dune-admin can Dial: a discovered entry (its Target, the
-// raw CRD host:port) or a hand-configured absolute http(s) URL. Same-origin
+// raw CRD host:port, always plain HTTP) or a hand-configured absolute http(s)
+// URL (whose scheme is preserved so HTTPS upstreams get a TLS dial). Same-origin
 // "/path" entries are skipped — they are already reachable as-is.
 func resolveProxyTargets(ifaces []webInterface, listenPort int) []proxyTarget {
+	if listenPort <= 0 {
+		return nil
+	}
 	var targets []proxyTarget
 	for _, w := range ifaces {
-		dial := w.Target
+		scheme, dial := "http", w.Target
 		if dial == "" {
-			dial = dialAddrFromURL(w.URL)
+			scheme, dial = schemeAndDialFromURL(w.URL)
 		}
 		if dial == "" {
 			continue
 		}
-		targets = append(targets, proxyTarget{label: w.Label, dialAddr: dial})
+		targets = append(targets, proxyTarget{label: w.Label, scheme: scheme, dialAddr: dial})
 	}
 	sort.Slice(targets, func(i, j int) bool { return targets[i].dialAddr < targets[j].dialAddr })
 	for i := range targets {
@@ -55,33 +61,51 @@ func resolveProxyTargets(ifaces []webInterface, listenPort int) []proxyTarget {
 	return targets
 }
 
-// dialAddrFromURL returns host:port for an absolute http(s) URL, filling in the
-// default port from the scheme. Returns "" for relative or non-http(s) URLs.
-func dialAddrFromURL(raw string) string {
+// schemeAndDialFromURL returns (scheme, host:port) for an absolute http(s) URL,
+// filling in the default port from the scheme. Returns ("", "") for relative or
+// non-http(s) URLs.
+func schemeAndDialFromURL(raw string) (string, string) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
-		return ""
+		return "", ""
 	}
 	if u.Port() != "" {
-		return u.Host
+		return u.Scheme, u.Host
 	}
 	if u.Scheme == "https" {
-		return net.JoinHostPort(u.Hostname(), "443")
+		return u.Scheme, net.JoinHostPort(u.Hostname(), "443")
 	}
-	return net.JoinHostPort(u.Hostname(), "80")
+	return u.Scheme, net.JoinHostPort(u.Hostname(), "80")
 }
+
+// dialAddrFromURL returns just the host:port for an absolute http(s) URL (used to
+// match API entries to their assigned proxy port). Returns "" when not proxyable.
+func dialAddrFromURL(raw string) string {
+	_, dial := schemeAndDialFromURL(raw)
+	return dial
+}
+
+// proxyListenScheme is the scheme the browser uses to reach a local proxy port.
+// The proxy listeners are always plain HTTP (dune-admin terminates no TLS itself;
+// any TLS is terminated by an external reverse proxy that does not forward these
+// ports). So the SPA must build the open-URL from this scheme, not from
+// window.location.protocol — otherwise an HTTPS-served dashboard would try
+// https://host:proxyPort and fail.
+const proxyListenScheme = "http"
 
 // webInterfaceOut is a web interface enriched with its assigned proxy port for
-// the API. ProxyPort is 0 (omitted) for entries that are not proxied.
+// the API. ProxyPort is 0 (omitted) for entries that are not proxied; ProxyScheme
+// is the scheme the browser must use to reach that port (only set when proxied).
 type webInterfaceOut struct {
-	Label     string `json:"label"`
-	URL       string `json:"url"`
-	ProxyPort int    `json:"proxyPort,omitempty"`
+	Label       string `json:"label"`
+	URL         string `json:"url"`
+	ProxyPort   int    `json:"proxyPort,omitempty"`
+	ProxyScheme string `json:"proxyScheme,omitempty"`
 }
 
-// withProxyPorts attaches each entry's proxy port (matched by dial address) so
-// the frontend can open http://<window.location.hostname>:<proxyPort>/ instead
-// of the unreachable rewritten URL.
+// withProxyPorts attaches each entry's proxy port + scheme (matched by dial
+// address) so the frontend can open <proxyScheme>://<window.location.hostname>:<proxyPort>/
+// instead of the unreachable rewritten URL.
 func withProxyPorts(ifaces []webInterface, targets []proxyTarget) []webInterfaceOut {
 	portByAddr := make(map[string]int, len(targets))
 	for _, t := range targets {
@@ -93,7 +117,11 @@ func withProxyPorts(ifaces []webInterface, targets []proxyTarget) []webInterface
 		if dial == "" {
 			dial = dialAddrFromURL(w.URL)
 		}
-		out = append(out, webInterfaceOut{Label: w.Label, URL: w.URL, ProxyPort: portByAddr[dial]})
+		entry := webInterfaceOut{Label: w.Label, URL: w.URL, ProxyPort: portByAddr[dial]}
+		if entry.ProxyPort != 0 {
+			entry.ProxyScheme = proxyListenScheme
+		}
+		out = append(out, entry)
 	}
 	return out
 }
@@ -107,6 +135,18 @@ func listenPortNum() int {
 	}
 	n, _ := strconv.Atoi(p)
 	return n
+}
+
+// listenHost returns the host/interface from listenAddr (e.g. "127.0.0.1:8080" →
+// "127.0.0.1", ":8080" → ""). The proxy ports bind to this same interface so
+// their exposure matches the main server's: a localhost-bound UI (behind a
+// reverse proxy) does not accidentally expose the proxy ports on all interfaces.
+func listenHost() string {
+	h, _, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return ""
+	}
+	return h
 }
 
 // newRootProxy reverse-proxies the entire root path to target, tunneling upstream
@@ -140,22 +180,28 @@ func withProxyAuth(next http.HandlerFunc) http.HandlerFunc {
 // port is open before this returns); a bind failure is logged and that single
 // proxy skipped — never fatal. dial is injected for testability.
 func startWebProxies(targets []proxyTarget, dial func(network, addr string) (net.Conn, error)) func() {
+	host := listenHost()
 	var servers []*http.Server
 	for _, t := range targets {
-		upstream := &url.URL{Scheme: "http", Host: t.dialAddr}
+		scheme := t.scheme
+		if scheme == "" {
+			scheme = "http"
+		}
+		upstream := &url.URL{Scheme: scheme, Host: t.dialAddr}
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", withProxyAuth(newRootProxy(upstream, dial)))
+		addr := net.JoinHostPort(host, strconv.Itoa(t.port))
 		srv := &http.Server{
-			Addr:              fmt.Sprintf(":%d", t.port),
+			Addr:              addr,
 			Handler:           mux,
 			ReadHeaderTimeout: 5 * time.Second,
 		}
 		ln, err := net.Listen("tcp", srv.Addr)
 		if err != nil {
-			log.Printf("web-proxy: %s on :%d: %v (skipped)", t.label, t.port, err)
+			log.Printf("web-proxy: %s on %s: %v (skipped)", t.label, addr, err)
 			continue
 		}
-		log.Printf("web-proxy: %s → :%d (upstream %s)", t.label, t.port, t.dialAddr)
+		log.Printf("web-proxy: %s → %s (upstream %s://%s)", t.label, addr, scheme, t.dialAddr)
 		servers = append(servers, srv)
 		go func() { _ = srv.Serve(ln) }()
 	}
@@ -235,8 +281,16 @@ func rebuildWebProxiesForActive() {
 		globalWebProxy.shutdown()
 		return
 	}
+	port := listenPortNum()
+	if port <= 0 {
+		// Can't derive a port base (listenAddr has no parseable port) — disable
+		// the web proxy rather than binding bogus low/privileged ports.
+		log.Printf("web-proxy: disabled — listen address %q has no usable port", listenAddr)
+		globalWebProxy.shutdown()
+		return
+	}
 	ifaces := append(append([]webInterface{}, getWebInterfaces()...),
 		discoveredWebInterfaces(context.Background(), active.Control, active.Executor)...)
-	targets := resolveProxyTargets(ifaces, listenPortNum())
+	targets := resolveProxyTargets(ifaces, port)
 	globalWebProxy.apply(targets, dialViaExecutor(active.Executor))
 }
