@@ -45,10 +45,7 @@ func resolveProxyTargets(ifaces []webInterface, listenPort int) []proxyTarget {
 	}
 	var targets []proxyTarget
 	for _, w := range ifaces {
-		scheme, dial := "http", w.Target
-		if dial == "" {
-			scheme, dial = schemeAndDialFromURL(w.URL)
-		}
+		scheme, dial := schemeAndDialFor(w)
 		if dial == "" {
 			continue
 		}
@@ -59,6 +56,18 @@ func resolveProxyTargets(ifaces []webInterface, listenPort int) []proxyTarget {
 		targets[i].port = listenPort + 10 + i
 	}
 	return targets
+}
+
+// schemeAndDialFor returns the upstream scheme and host:port dune-admin can Dial
+// for a web interface: a discovered entry uses its Target (raw CRD host:port,
+// always plain HTTP), otherwise the absolute http(s) URL is parsed. Returns
+// ("", "") when the entry is not proxyable (same-origin/relative URL). Single
+// source of truth so resolveProxyTargets and withProxyPorts can't drift.
+func schemeAndDialFor(w webInterface) (scheme, dial string) {
+	if w.Target != "" {
+		return "http", w.Target
+	}
+	return schemeAndDialFromURL(w.URL)
 }
 
 // schemeAndDialFromURL returns (scheme, host:port) for an absolute http(s) URL,
@@ -76,13 +85,6 @@ func schemeAndDialFromURL(raw string) (string, string) {
 		return u.Scheme, net.JoinHostPort(u.Hostname(), "443")
 	}
 	return u.Scheme, net.JoinHostPort(u.Hostname(), "80")
-}
-
-// dialAddrFromURL returns just the host:port for an absolute http(s) URL (used to
-// match API entries to their assigned proxy port). Returns "" when not proxyable.
-func dialAddrFromURL(raw string) string {
-	_, dial := schemeAndDialFromURL(raw)
-	return dial
 }
 
 // proxyListenScheme is the scheme the browser uses to reach a local proxy port.
@@ -113,10 +115,7 @@ func withProxyPorts(ifaces []webInterface, targets []proxyTarget) []webInterface
 	}
 	out := make([]webInterfaceOut, 0, len(ifaces))
 	for _, w := range ifaces {
-		dial := w.Target
-		if dial == "" {
-			dial = dialAddrFromURL(w.URL)
-		}
+		_, dial := schemeAndDialFor(w)
 		entry := webInterfaceOut{Label: w.Label, URL: w.URL, ProxyPort: portByAddr[dial]}
 		if entry.ProxyPort != 0 {
 			entry.ProxyScheme = proxyListenScheme
@@ -206,10 +205,13 @@ func startWebProxies(targets []proxyTarget, dial func(network, addr string) (net
 		go func() { _ = srv.Serve(ln) }()
 	}
 	return func() {
-		sc, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		// Close (not graceful Shutdown): on a server switch the old server is no
+		// longer active, so its proxy connections should drop at once. Shutdown
+		// would block on in-flight responses (e.g. a File Browser download) for up
+		// to its timeout — and apply() calls this under the manager lock, which
+		// would stall currentTargets() for that whole window.
 		for _, s := range servers {
-			_ = s.Shutdown(sc)
+			_ = s.Close()
 		}
 	}
 }
@@ -259,13 +261,16 @@ func (m *webProxyManager) apply(targets []proxyTarget, dial func(network, addr s
 	m.stop = startWebProxies(targets, dial)
 }
 
-// currentTargets returns the proxy targets for the active server, or nil when no
-// proxies are running. The returned slice is never mutated after assignment, so
-// callers may read it without holding the lock.
+// currentTargets returns a copy of the proxy targets for the active server, or
+// nil when no proxies are running. A copy (not the internal slice) so callers
+// can't mutate or race the manager's state.
 func (m *webProxyManager) currentTargets() []proxyTarget {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.targets
+	if m.targets == nil {
+		return nil
+	}
+	return append([]proxyTarget(nil), m.targets...)
 }
 
 // shutdown stops all proxies and clears the targets (process teardown / no
