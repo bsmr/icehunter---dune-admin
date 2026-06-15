@@ -21,8 +21,10 @@ func TestResolveProxyTargets(t *testing.T) {
 	ifaces := []webInterface{
 		{Label: "File Browser", URL: "http://vm:18888/", Target: "10.0.0.5:18888"},
 		{Label: "Battlegroup Director", URL: "http://vm:31003/", Target: "10.0.0.5:31003"},
-		{Label: "Wiki", URL: "https://wiki.example/"}, // manual absolute → proxied, port from scheme
-		{Label: "Local", URL: "/grafana"},             // same-origin → NOT proxied
+		{Label: "Wiki", URL: "https://wiki.example/"},         // manual absolute root → proxied, port from scheme
+		{Label: "Docs", URL: "https://docs.example/handbook"}, // non-root path → NOT proxied (would be dropped)
+		{Label: "Search", URL: "https://s.example/?q=x"},      // query → NOT proxied
+		{Label: "Local", URL: "/grafana"},                     // same-origin → NOT proxied
 	}
 	got := resolveProxyTargets(ifaces, 8080)
 	want := []proxyTarget{
@@ -75,7 +77,7 @@ func TestNewRootProxy_PassesAbsoluteAssetPaths(t *testing.T) {
 	}))
 	defer upstream.Close()
 	u, _ := url.Parse(upstream.URL)
-	h := newRootProxy(u, net.Dial)
+	h := newRootProxy(u, httpTransportVia(net.Dial))
 
 	for _, p := range []string{"/", "/Script/app.js", "/static/css/app.css"} {
 		rec := httptest.NewRecorder()
@@ -94,18 +96,14 @@ func TestNewRootProxy_HTTPSUpstream(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	// The proxy transport clones http.DefaultTransport; make that clone trust the
-	// test server's own cert (no InsecureSkipVerify) for this (non-parallel) test.
+	// Inject a transport that trusts the test server's cert — no global state
+	// mutation, no InsecureSkipVerify.
 	pool := x509.NewCertPool()
 	pool.AddCert(upstream.Certificate())
-	prev := http.DefaultTransport
-	t.Cleanup(func() { http.DefaultTransport = prev })
-	tr := prev.(*http.Transport).Clone()
-	tr.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
-	http.DefaultTransport = tr
+	transport := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}}
 
 	u, _ := url.Parse(upstream.URL) // https://127.0.0.1:<port>
-	h := newRootProxy(u, net.Dial)
+	h := newRootProxy(u, transport)
 
 	rec := httptest.NewRecorder()
 	h(rec, httptest.NewRequest("GET", "/Script/app.js", nil))

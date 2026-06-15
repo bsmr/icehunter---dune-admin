@@ -15,8 +15,12 @@ const InterfaceRow: React.FC<{ item: WebInterface }> = ({ item }) => {
   // The host comes from window.location; the scheme comes from the backend
   // (proxyScheme), NOT window.location.protocol: the proxy listeners are always
   // plain HTTP, so an HTTPS-served dashboard must still open them over http.
+  // window.location.hostname brackets an IPv6 literal in Chrome/Safari but not in
+  // Firefox/IE, so bracket it ourselves to keep `host:port` a valid URL.
+  const host = window.location.hostname
+  const hostForURL = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
   const openURL = item.proxyPort
-    ? `${item.proxyScheme ?? 'http'}://${window.location.hostname}:${item.proxyPort}/`
+    ? `${item.proxyScheme ?? 'http'}://${hostForURL}:${item.proxyPort}/`
     : item.url
   const copy = () => {
     copyText(openURL).then((ok) =>

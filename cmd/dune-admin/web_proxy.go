@@ -78,6 +78,13 @@ func schemeAndDialFromURL(raw string) (string, string) {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
 		return "", ""
 	}
+	// Only root URLs are proxyable. The root reverse proxy forwards the request
+	// path verbatim and builds the upstream from scheme+host only, so a non-root
+	// base path / query / fragment would be silently dropped (https://host/foo →
+	// https://host/, opening the wrong page). Leave those unproxied (opened as-is).
+	if (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return "", ""
+	}
 	if u.Port() != "" {
 		return u.Scheme, u.Host
 	}
@@ -151,9 +158,9 @@ func listenHost() string {
 // newRootProxy reverse-proxies the entire root path to target, tunneling upstream
 // connections through dial. Unlike newDirectorProxy it does NOT strip a prefix:
 // the proxied app owns the whole port, so its absolute asset paths resolve.
-func newRootProxy(target *url.URL, dial func(network, addr string) (net.Conn, error)) http.HandlerFunc {
+func newRootProxy(target *url.URL, transport http.RoundTripper) http.HandlerFunc {
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	proxy.Transport = httpTransportVia(dial)
+	proxy.Transport = transport
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Host = target.Host
 		proxy.ServeHTTP(w, r)
@@ -188,7 +195,7 @@ func startWebProxies(targets []proxyTarget, dial func(network, addr string) (net
 		}
 		upstream := &url.URL{Scheme: scheme, Host: t.dialAddr}
 		mux := http.NewServeMux()
-		mux.HandleFunc("/", withProxyAuth(newRootProxy(upstream, dial)))
+		mux.HandleFunc("/", withProxyAuth(newRootProxy(upstream, httpTransportVia(dial))))
 		addr := net.JoinHostPort(host, strconv.Itoa(t.port))
 		srv := &http.Server{
 			Addr:              addr,
