@@ -205,7 +205,7 @@
     "signIn": "Iniciar sesión",
     "switchToSidenav": "Cambiar a navegación lateral",
     "switchToTopnav": "Cambiar a navegación superior",
-    "title": "DUNE ADMIN",
+    "title": "UNE ADMIN",
     "updateAvailable": "Actualización disponible",
     "updateAvailableBody": "Hay una nueva versión disponible: v{{current}} → v{{latest}}.",
     "updated": "Actualizado a {{version}}. El servidor se está reiniciando…",
@@ -371,7 +371,9 @@
     "deleteSelected": "Eliminar seleccionados",
     "clearSelection": "Limpiar selección",
     "noItems": "Aún no hay objetos.",
-    "beta": "Beta"
+    "beta": "Beta",
+    "back": "Atrás",
+    "dismiss": "Descartar"
   },
   "database": {
     "columnColumn": "Columna",
@@ -677,7 +679,8 @@
     "groups": {
       "economy": "Economía",
       "operations": "Operaciones",
-      "playerWorld": "Mundo del jugador"
+      "playerWorld": "Mundo del jugador",
+      "dashboard": "Inicio"
     },
     "liveMap": "Mapa en vivo",
     "logs": "Registros",
@@ -689,7 +692,8 @@
     "events": "Eventos en vivo",
     "menu": "Navegación",
     "battlepass": "Pase de batalla",
-    "permissions": "Permisos"
+    "permissions": "Permisos",
+    "dashboard": "Panel"
   },
   "players": {
     "actions": {
@@ -1234,7 +1238,11 @@
       "serverIniDir": "Directorio INI del servidor",
       "serverIniDirHint": "ubicación de UserGame.ini",
       "url": "URL",
-      "urlHint": "almacenada en el navegador, no en el servidor"
+      "urlHint": "almacenada en el navegador, no en el servidor",
+      "dangerZone": "Zona de peligro",
+      "deleteServer": "Eliminar servidor",
+      "deleteServerNamed": "Eliminar el servidor \"{{name}}\"",
+      "deleteServerHint": "Elimina permanentemente este servidor y todos sus datos almacenados. Esto no se puede deshacer."
     },
     "amp": {
       "containerName": "Nombre de contenedor",
@@ -1317,7 +1325,8 @@
       "authDashboard": "Inicio de sesión del panel",
       "authDiscord": "Inicio de sesión con Discord (OAuth)",
       "authOwners": "Propietarios",
-      "discordStatus": "Embed de estado"
+      "discordStatus": "Embed de estado",
+      "marketBot": "Bot de mercado"
     },
     "ssh": {
       "hostPort": "Host : puerto",
@@ -1397,6 +1406,14 @@
       "cookieStrictDesc": "La cookie nunca se envía en ninguna solicitud entre sitios: la máxima protección CSRF. Incompatible con el inicio de sesión de Discord (la redirección OAuth no puede llevarla); úsalo solo con cuentas locales.",
       "cookieNone": "Ninguno",
       "cookieNoneDesc": "La cookie se envía en todas las solicitudes, incluso de origen cruzado. Solo se necesita cuando la UI y el backend están en dominios distintos (p. ej. separación CDN). Requiere HTTPS."
+    },
+    "scope": {
+      "server": "Servidor",
+      "admin": "DuneAdmin"
+    },
+    "marketBot": {
+      "enabled": "Activar el bot de mercado para este servidor",
+      "enabledHint": "Ejecuta el bot de mercado integrado en este servidor. Los ajustes se comparten entre servidores y están en la pestaña Mercado."
     }
   },
   "storage": {
@@ -1892,5 +1909,72 @@
     "placeholder": "Buscar jugadores…",
     "loadFailed": "Error al cargar jugadores: {{message}}",
     "loading": "Cargando jugadores…"
+  },
+  "servers": {
+    "removeTitle": "Eliminar servidor",
+    "removeDesc": "¿Eliminar permanentemente \"{{name}}\" y todos sus datos almacenados? Esto no se puede deshacer.",
+    "removeConfirm": "Eliminar",
+    "removeFailed": "Error al eliminar",
+    "removeWarning": "Eliminar permanentemente \"{{name}}\" y todos sus datos almacenados. Esto no se puede deshacer.",
+    "removeConfirmLabel": "Escribe {{name}} para confirmar",
+    "removeCountdown": "Espera {{seconds}}s…"
+  },
+  "setup": {
+    "discovering": "Detectando automáticamente la configuración del servidor…",
+    "connecting": "Conectando…",
+    "saveAndConnect": "Guardar y conectar",
+    "serverName": "Nombre del servidor",
+    "serverNamePlaceholder": "p. ej. Producción",
+    "nameRequired": "El nombre del servidor es obligatorio",
+    "nameInvalid": "El nombre del servidor debe contener letras o números",
+    "connectTimeout": "Aún sin conexión: revisa tu configuración e inténtalo de nuevo.",
+    "addServerTitle": "Agregar un servidor"
+  },
+  "discovery": {
+    "title": "Detectando ajustes automáticamente",
+    "subtitle": "Leyendo valores del servidor…",
+    "failed": "No se pudo detectar automáticamente: introduce los valores manualmente.",
+    "steps": {
+      "connect": "Conectando por SSH",
+      "namespace": "Detectando espacio de nombres",
+      "dbPod": "Localizando pod de base de datos",
+      "dbCreds": "Leyendo credenciales de base de datos",
+      "brokers": "Localizando pods de broker",
+      "gameProc": "Localizando proceso del servidor de juego",
+      "containers": "Inspeccionando contenedores",
+      "finalize": "Finalizando"
+    }
+  },
+  "manage": {
+    "title": "Administrar servidor",
+    "serverName": "Nombre del servidor"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "subtitle": "Servidores y configuración de un vistazo",
+    "loadFailed": "No se pudo cargar el estado del servidor: {{message}}",
+    "running": "En ejecución",
+    "offline": "Desconectado",
+    "playersOnline": "{{count}} en línea",
+    "view": "Ver",
+    "manage": "Administrar",
+    "empty": {
+      "title": "Aún no hay servidores",
+      "body": "Agrega tu primer servidor de juego para empezar. También puedes configurar auth o Discord abajo — todo opcional.",
+      "addServer": "Agregar tu primer servidor",
+      "guestBody": "Aún no se ha configurado ningún servidor."
+    },
+    "onboarding": {
+      "auth": {
+        "title": "Configurar inicio de sesión / auth",
+        "body": "Exigir inicio de sesión para acceder al panel. Opcional — déjalo desactivado en una red local de confianza.",
+        "cta": "Configurar auth"
+      },
+      "discord": {
+        "title": "Conectar un bot de Discord",
+        "body": "Envía notificaciones y asigna roles a permisos. Opcional.",
+        "cta": "Conectar Discord"
+      }
+    }
   }
 }

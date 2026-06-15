@@ -205,7 +205,7 @@
     "signIn": "登录",
     "switchToSidenav": "切换到侧边导航",
     "switchToTopnav": "切换到顶部导航",
-    "title": "DUNE ADMIN",
+    "title": "UNE ADMIN",
     "updateAvailable": "有可用更新",
     "updateAvailableBody": "新版本可用：v{{current}} → v{{latest}}。",
     "updated": "已更新至 {{version}}。服务器正在重启…",
@@ -369,7 +369,9 @@
     "deleteSelected": "删除所选",
     "clearSelection": "清除选择",
     "noItems": "暂无项目。",
-    "beta": "测试版"
+    "beta": "测试版",
+    "back": "返回",
+    "dismiss": "忽略"
   },
   "database": {
     "columnColumn": "列",
@@ -670,7 +672,8 @@
     "groups": {
       "economy": "经济",
       "operations": "运营",
-      "playerWorld": "玩家世界"
+      "playerWorld": "玩家世界",
+      "dashboard": "主页"
     },
     "liveMap": "实时地图",
     "logs": "日志",
@@ -682,7 +685,8 @@
     "events": "实时活动",
     "menu": "导航",
     "battlepass": "战斗通行证",
-    "permissions": "权限"
+    "permissions": "权限",
+    "dashboard": "仪表板"
   },
   "players": {
     "actions": {
@@ -1213,7 +1217,11 @@
       "serverIniDir": "服务器 INI 目录",
       "serverIniDirHint": "UserGame.ini 位置",
       "url": "URL",
-      "urlHint": "存储在浏览器中，而非服务器"
+      "urlHint": "存储在浏览器中，而非服务器",
+      "dangerZone": "危险区域",
+      "deleteServer": "删除服务器",
+      "deleteServerNamed": "删除服务器“{{name}}”",
+      "deleteServerHint": "永久删除此服务器及其所有存储的数据。此操作无法撤销。"
     },
     "amp": {
       "containerName": "容器名称",
@@ -1296,7 +1304,8 @@
       "authDashboard": "面板登录",
       "authDiscord": "Discord 登录（OAuth）",
       "authOwners": "所有者",
-      "discordStatus": "状态嵌入"
+      "discordStatus": "状态嵌入",
+      "marketBot": "市场机器人"
     },
     "ssh": {
       "hostPort": "主机：端口",
@@ -1376,6 +1385,14 @@
       "cookieStrictDesc": "Cookie 在任何跨站请求中都不会发送——最强的 CSRF 保护。与 Discord 登录不兼容（OAuth 重定向无法携带它）；仅与本地用户名/密码账户配合使用。",
       "cookieNone": "None（无）",
       "cookieNoneDesc": "Cookie 在所有请求中发送，包括跨域。仅当面板 UI 和后端位于不同域名时需要（例如 CDN 分离）。需要 HTTPS。"
+    },
+    "scope": {
+      "server": "服务器",
+      "admin": "DuneAdmin"
+    },
+    "marketBot": {
+      "enabled": "为此服务器启用市场机器人",
+      "enabledHint": "在此服务器上运行内置市场机器人。调优设置在各服务器间共享，位于“市场”选项卡中。"
     }
   },
   "storage": {
@@ -1869,5 +1886,72 @@
     "placeholder": "搜索玩家…",
     "loadFailed": "加载玩家失败：{{message}}",
     "loading": "正在加载玩家…"
+  },
+  "servers": {
+    "removeTitle": "移除服务器",
+    "removeDesc": "永久移除“{{name}}”及其所有存储的数据吗？此操作无法撤销。",
+    "removeConfirm": "移除",
+    "removeFailed": "移除失败",
+    "removeWarning": "永久删除“{{name}}”及其所有存储数据。此操作无法撤销。",
+    "removeConfirmLabel": "输入 {{name}} 以确认",
+    "removeCountdown": "请等待 {{seconds}} 秒…"
+  },
+  "setup": {
+    "discovering": "正在自动发现服务器设置…",
+    "connecting": "正在连接…",
+    "saveAndConnect": "保存并连接",
+    "serverName": "服务器名称",
+    "serverNamePlaceholder": "例如 Production",
+    "nameRequired": "服务器名称为必填项",
+    "nameInvalid": "服务器名称必须包含字母或数字",
+    "connectTimeout": "仍未连接——请检查设置后重试。",
+    "addServerTitle": "添加服务器"
+  },
+  "discovery": {
+    "title": "正在自动检测设置",
+    "subtitle": "正在从服务器读取值…",
+    "failed": "无法自动检测——请手动填写这些值。",
+    "steps": {
+      "connect": "正在通过 SSH 连接",
+      "namespace": "正在检测命名空间",
+      "dbPod": "正在定位数据库 Pod",
+      "dbCreds": "正在读取数据库凭据",
+      "brokers": "正在定位 broker Pod",
+      "gameProc": "正在定位游戏服务器进程",
+      "containers": "正在检查容器",
+      "finalize": "正在完成"
+    }
+  },
+  "manage": {
+    "title": "管理服务器",
+    "serverName": "服务器名称"
+  },
+  "dashboard": {
+    "title": "仪表板",
+    "subtitle": "一览服务器与设置",
+    "loadFailed": "无法加载服务器状态：{{message}}",
+    "running": "运行中",
+    "offline": "离线",
+    "playersOnline": "{{count}} 人在线",
+    "view": "查看",
+    "manage": "管理",
+    "empty": {
+      "title": "还没有服务器",
+      "body": "添加你的第一个游戏服务器即可开始。你也可以在下方设置鉴权或 Discord——全部可选。",
+      "addServer": "添加第一个服务器",
+      "guestBody": "尚未配置任何服务器。"
+    },
+    "onboarding": {
+      "auth": {
+        "title": "设置登录 / 鉴权",
+        "body": "要求登录才能访问仪表板。可选——在受信任的本地网络中可不启用。",
+        "cta": "设置鉴权"
+      },
+      "discord": {
+        "title": "连接 Discord 机器人",
+        "body": "发送通知并将身份组映射到权限。可选。",
+        "cta": "连接 Discord"
+      }
+    }
   }
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 )
@@ -80,7 +79,7 @@ func handleUpdateScheduledRestarts(w http.ResponseWriter, r *http.Request) {
 	cur.Rules = body.Rules
 	cur.WarnMinutes = body.WarnMinutes
 	if err := saveScheduledRestartConfig(cur); err != nil {
-		log.Printf("handleUpdateScheduledRestarts: %v", err)
+		componentLog("scheduled_restart").Error().Err(err).Msg("save schedule failed")
 		jsonErr(w, fmt.Errorf("could not save schedule"), http.StatusInternalServerError)
 		return
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -56,7 +55,7 @@ func loadScheduledBackupConfig() {
 	}
 	var c scheduledBackupConfig
 	if err := json.Unmarshal(data, &c); err != nil {
-		log.Printf("scheduled-backups: config parse: %v", err)
+		componentLog("scheduled_backup").Error().Err(err).Msg("config parse failed")
 		return
 	}
 	backupMu.Lock()
@@ -94,7 +93,7 @@ func setBackupLastFired(ts int64) {
 	defer backupMu.Unlock()
 	backupCfg.LastFired = ts
 	if err := persistBackupConfigLocked(); err != nil {
-		log.Printf("scheduled-backups: persist last_fired: %v", err)
+		componentLog("scheduled_backup").Error().Err(err).Msg("persist last_fired failed")
 	}
 }
 
@@ -191,28 +190,28 @@ func backupSchedulerTickOnce(_ context.Context, now time.Time) {
 func fireScheduledBackup(at time.Time) {
 	// Watermark first so a failing backup can't re-fire the same occurrence every tick.
 	setBackupLastFired(at.Unix())
-	log.Printf("scheduled-backups: firing backup for occurrence %s", at.Format(time.RFC3339))
+	componentLog("scheduled_backup").Info().Str("occurrence", at.Format(time.RFC3339)).Msg("firing backup")
 	if globalControl == nil || globalExecutor == nil {
-		log.Printf("scheduled-backups: control plane not connected; backup skipped")
+		componentLog("scheduled_backup").Warn().Msg("control plane not connected; backup skipped")
 		return
 	}
 	prov, ok := globalControl.(dbBackupProvider)
 	if !ok {
-		log.Printf("scheduled-backups: control plane %q has no DB backup support; skipped", globalControl.Name())
+		componentLog("scheduled_backup").Warn().Str("control_plane", globalControl.Name()).Msg("control plane has no DB backup support; skipped")
 		return
 	}
 	dir, err := dbBackupDir()
 	if err != nil {
-		log.Printf("scheduled-backups: %v", err)
+		componentLog("scheduled_backup").Error().Err(err).Msg("backup dir unavailable")
 		return
 	}
 	name := dbBackupFilename(time.Now())
 	dest := filepath.Join(dir, name)
 	if out, err := prov.BackupDatabase(globalExecutor, dbBackupConn(), dest); err != nil {
-		log.Printf("scheduled-backups: backup failed: %v (%s)", err, out)
+		componentLog("scheduled_backup").Error().Err(err).Str("output", out).Msg("backup failed")
 		return
 	}
-	log.Printf("scheduled-backups: wrote %s", name)
+	componentLog("scheduled_backup").Info().Str("name", name).Msg("backup written")
 	pruneOldBackups()
 }
 
@@ -225,7 +224,7 @@ func pruneOldBackups() {
 	}
 	files, err := listDBBackups()
 	if err != nil {
-		log.Printf("scheduled-backups: prune list: %v", err)
+		componentLog("scheduled_backup").Error().Err(err).Msg("prune list failed")
 		return
 	}
 	names := make([]string, len(files))
@@ -234,9 +233,9 @@ func pruneOldBackups() {
 	}
 	for _, n := range backupsToPrune(names, cfg.KeepN) {
 		if err := deleteDBBackup(n); err != nil {
-			log.Printf("scheduled-backups: prune %s: %v", n, err)
+			componentLog("scheduled_backup").Error().Err(err).Str("name", n).Msg("prune failed")
 		} else {
-			log.Printf("scheduled-backups: pruned old backup %s", n)
+			componentLog("scheduled_backup").Info().Str("name", n).Msg("pruned old backup")
 		}
 	}
 }

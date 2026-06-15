@@ -205,7 +205,7 @@
     "signIn": "サインイン",
     "switchToSidenav": "サイドナビゲーションに切替",
     "switchToTopnav": "上部ナビゲーションに切替",
-    "title": "DUNE ADMIN",
+    "title": "UNE ADMIN",
     "updateAvailable": "アップデートが利用可能",
     "updateAvailableBody": "新しいバージョンが利用可能です：v{{current}} → v{{latest}}。",
     "updated": "{{version}} に更新しました。サーバーを再起動しています…",
@@ -369,7 +369,9 @@
     "deleteSelected": "選択項目を削除",
     "clearSelection": "選択を解除",
     "noItems": "アイテムはまだありません。",
-    "beta": "ベータ"
+    "beta": "ベータ",
+    "back": "戻る",
+    "dismiss": "閉じる"
   },
   "database": {
     "columnColumn": "カラム",
@@ -670,7 +672,8 @@
     "groups": {
       "economy": "エコノミー",
       "operations": "オペレーション",
-      "playerWorld": "プレイヤーワールド"
+      "playerWorld": "プレイヤーワールド",
+      "dashboard": "ホーム"
     },
     "liveMap": "ライブマップ",
     "logs": "ログ",
@@ -682,7 +685,8 @@
     "events": "ライブイベント",
     "menu": "ナビゲーション",
     "battlepass": "バトルパス",
-    "permissions": "権限"
+    "permissions": "権限",
+    "dashboard": "ダッシュボード"
   },
   "players": {
     "actions": {
@@ -1213,7 +1217,11 @@
       "serverIniDir": "サーバーINIディレクトリ",
       "serverIniDirHint": "UserGame.ini の場所",
       "url": "URL",
-      "urlHint": "ブラウザに保存され、サーバーには保存されません"
+      "urlHint": "ブラウザに保存され、サーバーには保存されません",
+      "dangerZone": "危険ゾーン",
+      "deleteServer": "サーバーを削除",
+      "deleteServerNamed": "サーバー「{{name}}」を削除",
+      "deleteServerHint": "このサーバーと保存されているすべてのデータを完全に削除します。この操作は元に戻せません。"
     },
     "amp": {
       "containerName": "コンテナ名",
@@ -1296,7 +1304,8 @@
       "authDashboard": "ダッシュボードログイン",
       "authDiscord": "Discordログイン（OAuth）",
       "authOwners": "オーナー",
-      "discordStatus": "ステータス埋め込み"
+      "discordStatus": "ステータス埋め込み",
+      "marketBot": "マーケットボット"
     },
     "ssh": {
       "hostPort": "ホスト：ポート",
@@ -1376,6 +1385,14 @@
       "cookieStrictDesc": "Cookie はクロスサイトリクエストで一切送信されません——最も強力な CSRF 保護。Discord ログインと互換性がありません（OAuth リダイレクトが Cookie を運べない）。ローカルアカウントでのみ使用してください。",
       "cookieNone": "None（なし）",
       "cookieNoneDesc": "Cookie はクロスオリジンを含むすべてのリクエストで送信されます。UI とバックエンドが別ドメインで提供される場合（CDN 分離など）のみ必要です。HTTPS が必要です。"
+    },
+    "scope": {
+      "server": "サーバー",
+      "admin": "DuneAdmin"
+    },
+    "marketBot": {
+      "enabled": "このサーバーでマーケットボットを有効化",
+      "enabledHint": "このサーバーで組み込みマーケットボットを実行します。調整はサーバー間で共有され、マーケットタブにあります。"
     }
   },
   "storage": {
@@ -1869,5 +1886,72 @@
     "placeholder": "プレイヤーを検索…",
     "loadFailed": "プレイヤーの読み込みに失敗しました: {{message}}",
     "loading": "プレイヤーを読み込み中…"
+  },
+  "servers": {
+    "removeTitle": "サーバーを削除",
+    "removeDesc": "「{{name}}」と保存されているすべてのデータを完全に削除しますか？この操作は元に戻せません。",
+    "removeConfirm": "削除",
+    "removeFailed": "削除に失敗しました",
+    "removeWarning": "「{{name}}」とその保存データをすべて完全に削除します。この操作は取り消せません。",
+    "removeConfirmLabel": "確認のため {{name}} と入力してください",
+    "removeCountdown": "{{seconds}}秒お待ちください…"
+  },
+  "setup": {
+    "discovering": "サーバー設定を自動検出しています…",
+    "connecting": "接続しています…",
+    "saveAndConnect": "保存して接続",
+    "serverName": "サーバー名",
+    "serverNamePlaceholder": "例: Production",
+    "nameRequired": "サーバー名は必須です",
+    "nameInvalid": "サーバー名には英数字を含める必要があります",
+    "connectTimeout": "まだ接続できていません。設定を確認して再試行してください。",
+    "addServerTitle": "サーバーを追加"
+  },
+  "discovery": {
+    "title": "設定を自動検出しています",
+    "subtitle": "サーバーから値を読み取っています…",
+    "failed": "自動検出できませんでした。値を手動で入力してください。",
+    "steps": {
+      "connect": "SSH で接続中",
+      "namespace": "ネームスペースを検出中",
+      "dbPod": "データベース Pod を特定中",
+      "dbCreds": "データベース認証情報を読み取り中",
+      "brokers": "ブローカー Pod を特定中",
+      "gameProc": "ゲームサーバープロセスを特定中",
+      "containers": "コンテナを検査中",
+      "finalize": "完了処理中"
+    }
+  },
+  "manage": {
+    "title": "サーバー管理",
+    "serverName": "サーバー名"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "subtitle": "サーバーと設定をひと目で",
+    "loadFailed": "サーバーの状態を読み込めませんでした: {{message}}",
+    "running": "稼働中",
+    "offline": "オフライン",
+    "playersOnline": "{{count}} 人オンライン",
+    "view": "表示",
+    "manage": "管理",
+    "empty": {
+      "title": "サーバーがまだありません",
+      "body": "最初のゲームサーバーを追加して始めましょう。下で認証や Discord も設定できます（すべて任意）。",
+      "addServer": "最初のサーバーを追加",
+      "guestBody": "まだサーバーが構成されていません。"
+    },
+    "onboarding": {
+      "auth": {
+        "title": "ログイン / 認証を設定",
+        "body": "ダッシュボードへのアクセスにログインを必須にします。任意 — 信頼できるローカルネットワークではオフのままで構いません。",
+        "cta": "認証を設定"
+      },
+      "discord": {
+        "title": "Discord ボットを接続",
+        "body": "通知を送信し、ロールを権限に対応付けます。任意。",
+        "cta": "Discord を接続"
+      }
+    }
   }
 }

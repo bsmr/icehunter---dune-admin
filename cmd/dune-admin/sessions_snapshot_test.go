@@ -33,7 +33,7 @@ func TestWriteStatSnapshot_StoresSolarisBalance(t *testing.T) {
 		SnappedAt:      "2026-01-01T12:00:00Z",
 		SolarisBalance: ptr(int64(313_183_207)),
 	}
-	if err := writeStatSnapshot(ctx, db, snap); err != nil {
+	if err := writeStatSnapshot(ctx, db, snap, "default"); err != nil {
 		t.Fatalf("writeStatSnapshot: %v", err)
 	}
 
@@ -59,12 +59,12 @@ func TestGetStatSnapshotHistory_ReturnsSolarisBalance(t *testing.T) {
 		{AccountID: 7, SnappedAt: "2026-01-01T10:10:00Z", SolarisBalance: ptr(int64(1200))},
 	}
 	for _, s := range snaps {
-		if err := writeStatSnapshot(ctx, db, s); err != nil {
+		if err := writeStatSnapshot(ctx, db, s, "default"); err != nil {
 			t.Fatalf("writeStatSnapshot: %v", err)
 		}
 	}
 
-	got, err := getStatSnapshotHistory(ctx, db, 7, 500)
+	got, err := getStatSnapshotHistory(ctx, db, "default", 7, 500)
 	if err != nil {
 		t.Fatalf("getStatSnapshotHistory: %v", err)
 	}
@@ -89,11 +89,11 @@ func TestGetStatSnapshotHistory_NilSolarisBalanceWhenNotSet(t *testing.T) {
 	ctx := context.Background()
 
 	snap := statSnapshot{AccountID: 5, SnappedAt: "2026-01-01T10:00:00Z"}
-	if err := writeStatSnapshot(ctx, db, snap); err != nil {
+	if err := writeStatSnapshot(ctx, db, snap, "default"); err != nil {
 		t.Fatalf("writeStatSnapshot: %v", err)
 	}
 
-	got, err := getStatSnapshotHistory(ctx, db, 5, 1)
+	got, err := getStatSnapshotHistory(ctx, db, "default", 5, 1)
 	if err != nil {
 		t.Fatalf("getStatSnapshotHistory: %v", err)
 	}

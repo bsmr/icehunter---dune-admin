@@ -71,11 +71,31 @@ function notifyAuthExpired() {
   }
 }
 
+// Active server ID — injected into every API request as X-Dune-Server so the
+// backend's serverSelectorMiddleware routes to the correct ServerContext.
+// Single-server installs leave this empty; the backend falls back to its active server.
+let _activeServerID = (typeof localStorage !== 'undefined'
+  ? localStorage.getItem('dune_admin_active_server')
+  : null) ?? ''
+
+export function setActiveServerID(id: string): void {
+  _activeServerID = id
+  if (typeof localStorage !== 'undefined') {
+    if (id) localStorage.setItem('dune_admin_active_server', id)
+    else localStorage.removeItem('dune_admin_active_server')
+  }
+}
+
+export function getActiveServerID(): string {
+  return _activeServerID
+}
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = await window.Clerk?.session?.getToken()
   const headers: Record<string, string> = {}
   if (body) headers['Content-Type'] = 'application/json'
   if (token) headers['Authorization'] = `Bearer ${token}`
+  if (_activeServerID) headers['X-Dune-Server'] = _activeServerID
   const res = await fetch(`${apiBase}${path}`, {
     method,
     headers,
@@ -229,6 +249,33 @@ export type AppConfig = {
   scrip_currency: number
 }
 
+// ServerConfig is the per-server subset of AppConfig (everything that varies
+// between game servers), plus id/name. Secrets are masked on read and the
+// placeholder is restored server-side on write. Returned by GET
+// /servers/{id}/config and accepted by PUT /servers/{id}/config.
+export type ServerConfig = { id: number, name: string } & Partial<AppConfig>
+
+export type ServerInfo = {
+  id: number
+  name: string
+  active: boolean
+}
+
+// ServerHealth is the dashboard health summary for one registered server,
+// returned by GET /servers/health.
+export type ServerHealth = {
+  id: number
+  name: string
+  active: boolean
+  control: string
+  running: boolean
+  phase: string
+  uptime_seconds: number
+  players_online: number
+  db_connected: boolean
+  error?: string
+}
+
 export type Status = {
   executor: string // "ssh" | "local" | "none"
   control: string // "kubectl" | "docker" | "local" | "none"
@@ -245,6 +292,7 @@ export type Status = {
   listen_addr?: string
   shutdown_pending?: boolean // a broadcast restart/stop is armed on the backend
   shutdown_at?: number // Unix seconds the armed action fires (0 when none)
+  needs_setup?: boolean // true when no config exists or DB password is unset
 }
 export type Player = {
   id: number
@@ -977,7 +1025,20 @@ export const api = {
   },
   config: {
     get: () => req<AppConfig>('GET', '/config'),
-    save: (cfg: AppConfig) => req<Status>('POST', '/config', cfg),
+    // global=true (Settings modal) persists only global settings and never
+    // touches the connection or creates/reconnects a server.
+    save: (cfg: AppConfig, global = false) =>
+      req<Status>('POST', global ? '/config?scope=global' : '/config', cfg),
+    discover: (persist = false) =>
+      req<{
+        db_user: string
+        db_name: string
+        db_pass: string
+        broker_game: string
+        broker_admin: string
+        director_url: string
+        persisted: boolean
+      }>('POST', `/discover${persist ? '?persist=true' : ''}`),
   },
   serverSettings: {
     get: () => req<ServerSettingsResponse>('GET', '/server-settings'),
@@ -1364,6 +1425,21 @@ export const api = {
     config: () => req<EventsConfig>('GET', '/events/config'),
     saveConfig: (cfg: EventsConfig) => req<EventsConfig>('PUT', '/events/config', cfg),
   },
+  servers: {
+    list: () => req<ServerInfo[]>('GET', '/servers'),
+    health: () => req<ServerHealth[]>('GET', '/servers/health'),
+    add: (cfg: ServerConfig) =>
+      req<ServerInfo>('POST', '/servers', cfg),
+    discover: (cfg: ServerConfig) =>
+      req<Partial<AppConfig>>('POST', '/servers/discover', cfg),
+    setActive: (id: number) => req<{ active: number }>('PUT', '/servers/active', { id }),
+    remove: (id: number) => req<{ deleted: boolean }>('DELETE', `/servers/${id}`),
+    reconnect: (id: number) => req<{ connected: boolean }>('POST', `/servers/${id}/reconnect`),
+    getConfig: (id: number) => req<ServerConfig>('GET', `/servers/${id}/config`),
+    saveConfig: (id: number, cfg: ServerConfig) =>
+      req<ServerConfig>('PUT', `/servers/${id}/config`, cfg),
+  },
+
   battlepass: {
     tiers: () => req<BattlepassTiersResponse>('GET', '/battlepass/tiers'),
     createTier: (body: BattlepassTierCreate) => req<BattlepassTier>('POST', '/battlepass/tiers', body),

@@ -33,6 +33,9 @@ func initLocationSchema(db *sql.DB) error {
 	if _, err := db.Exec(locationStoreSchema); err != nil {
 		return fmt.Errorf("init location schema: %w", err)
 	}
+	if err := addServerIDColumn(db, "map_locations"); err != nil {
+		return err
+	}
 	return nil
 }
 

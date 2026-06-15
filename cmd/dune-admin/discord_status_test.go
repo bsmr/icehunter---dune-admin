@@ -11,6 +11,115 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// ── server context fakes ──────────────────────────────────────────────────────
+
+// statusFakeControl embeds stubControlPlane and scripts GetStatus for
+// discord-status tests. stubControlPlane is defined in
+// handlers_server_settings_ini_dir_test.go.
+type statusFakeControl struct {
+	stubControlPlane
+	statusResult *BattlegroupStatus
+	statusErr    error
+}
+
+func (f *statusFakeControl) GetStatus(_ context.Context, _ Executor) (*BattlegroupStatus, error) {
+	return f.statusResult, f.statusErr
+}
+
+// ── applyControlStatus ────────────────────────────────────────────────────────
+
+func TestApplyControlStatus_NilControl(t *testing.T) {
+	t.Parallel()
+	sc := &ServerContext{} // Control is nil
+	data := statusEmbedData{State: serverStateOffline}
+	applyControlStatus(context.Background(), sc, &data)
+	if data.State != serverStateOffline {
+		t.Errorf("state = %v, want offline (nil control must be a no-op)", data.State)
+	}
+}
+
+func TestApplyControlStatus_UsesServerContextControl(t *testing.T) {
+	t.Parallel()
+	ctrl := &statusFakeControl{
+		statusResult: &BattlegroupStatus{
+			Servers: []ServerRow{
+				{Map: "Hagga Basin", Phase: "Running", Ready: true, Players: 3},
+			},
+		},
+	}
+	sc := &ServerContext{Control: ctrl}
+	data := statusEmbedData{State: serverStateOffline}
+	applyControlStatus(context.Background(), sc, &data)
+	if data.State != serverStateOnline {
+		t.Errorf("state = %v, want online", data.State)
+	}
+	if data.CurrentOnline != 3 {
+		t.Errorf("CurrentOnline = %d, want 3", data.CurrentOnline)
+	}
+	if len(data.Maps) != 1 || data.Maps[0].Map != "Hagga Basin" {
+		t.Errorf("Maps = %+v, want [{Hagga Basin 3}]", data.Maps)
+	}
+}
+
+func TestApplyControlStatus_ControlError(t *testing.T) {
+	t.Parallel()
+	ctrl := &statusFakeControl{statusErr: errors.New("control plane error")}
+	sc := &ServerContext{Control: ctrl}
+	data := statusEmbedData{State: serverStateOffline}
+	applyControlStatus(context.Background(), sc, &data)
+	// error → offline, no panic
+	if data.State != serverStateOffline {
+		t.Errorf("state = %v, want offline on error", data.State)
+	}
+}
+
+// ── applyDBStats ──────────────────────────────────────────────────────────────
+
+func TestApplyDBStats_NilDB(t *testing.T) {
+	t.Parallel()
+	sc := &ServerContext{} // DB is nil
+	data := statusEmbedData{TotalPlayers: 99}
+	applyDBStats(context.Background(), sc, &data)
+	if data.TotalPlayers != 99 {
+		t.Errorf("TotalPlayers changed, want 99 got %d", data.TotalPlayers)
+	}
+}
+
+// ── collectStatusData ─────────────────────────────────────────────────────────
+
+func TestCollectStatusData_NilServerContext(t *testing.T) {
+	t.Parallel()
+	data := collectStatusData(context.Background(), nil, nil)
+	if data.State != serverStateOffline {
+		t.Errorf("state = %v, want offline for nil ServerContext", data.State)
+	}
+}
+
+func TestCollectStatusData_OnlineServerContext(t *testing.T) {
+	t.Parallel()
+	ctrl := &statusFakeControl{
+		statusResult: &BattlegroupStatus{
+			Servers: []ServerRow{
+				{Map: "Deep Desert", Phase: "Running", Ready: true, Players: 7},
+			},
+		},
+	}
+	sdb, err := openUnifiedStore(":memory:")
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer func() { _ = sdb.Close() }()
+
+	sc := &ServerContext{Control: ctrl, StoreScope: "srv1"}
+	data := collectStatusData(context.Background(), sc, sdb)
+	if data.State != serverStateOnline {
+		t.Errorf("state = %v, want online", data.State)
+	}
+	if data.CurrentOnline != 7 {
+		t.Errorf("CurrentOnline = %d, want 7", data.CurrentOnline)
+	}
+}
+
 // ── embed builder ─────────────────────────────────────────────────────────────
 
 func TestBuildStatusEmbed(t *testing.T) {
@@ -282,7 +391,7 @@ func TestSqliteStatusStore_RoundTrip(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 
-	store := newSqliteStatusStore(db)
+	store := newSqliteStatusStore(db, "default")
 
 	// Fresh store: empty values, no error.
 	ch, msg, err := store.loadStatusMessage()
@@ -339,7 +448,7 @@ func TestCountUniquePlayers24h(t *testing.T) {
 	insert(2, alsoRecent)
 	insert(3, old)
 
-	count, err := countUniquePlayers24h(context.Background(), db, now)
+	count, err := countUniquePlayers24h(context.Background(), db, "default", now)
 	if err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -349,7 +458,7 @@ func TestCountUniquePlayers24h(t *testing.T) {
 }
 
 func TestCountUniquePlayers24h_NilDB(t *testing.T) {
-	count, err := countUniquePlayers24h(context.Background(), nil, time.Now())
+	count, err := countUniquePlayers24h(context.Background(), nil, "default", time.Now())
 	if err != nil {
 		t.Fatalf("nil db should be a graceful zero, got err: %v", err)
 	}

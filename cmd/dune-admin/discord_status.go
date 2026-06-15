@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -38,9 +37,11 @@ const (
 // limits and pointless churn. The configured value is clamped up to this.
 const statusMinInterval = 30 * time.Second
 
-// statusMessageMetaKey is the meta-table key under which the posted embed's
-// "channelID:messageID" is persisted so restarts edit, not duplicate.
-const statusMessageMetaKey = "discord_status_message"
+// statusMessageMetaKey returns the meta-table key for a given server's posted
+// embed "channelID:messageID" so restarts edit, not duplicate.
+func statusMessageMetaKey(serverID string) string {
+	return "discord_status_message:" + serverID
+}
 
 // ── Embed data ────────────────────────────────────────────────────────────────
 
@@ -191,15 +192,15 @@ func aggregateMapCounts(servers []ServerRow) []mapPlayerCount {
 // countUniquePlayers24h returns the number of distinct accounts that started a
 // play session in the 24 hours preceding now. A nil db yields 0 with no error
 // (session tracking disabled — the embed degrades gracefully).
-func countUniquePlayers24h(ctx context.Context, db *sql.DB, now time.Time) (int64, error) {
+func countUniquePlayers24h(ctx context.Context, db *sql.DB, serverID string, now time.Time) (int64, error) {
 	if db == nil {
 		return 0, nil
 	}
 	since := now.UTC().Add(-24 * time.Hour).Format(time.RFC3339)
 	var count int64
 	err := db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT account_id) FROM play_sessions WHERE started_at >= ?`,
-		since).Scan(&count)
+		`SELECT COUNT(DISTINCT account_id) FROM play_sessions WHERE server_id = ? AND started_at >= ?`,
+		serverID, since).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count unique 24h: %w", err)
 	}
@@ -216,18 +217,19 @@ type statusMessageStore interface {
 }
 
 // sqliteStatusStore implements statusMessageStore on the unified store's meta
-// table, storing "channelID:messageID" under statusMessageMetaKey.
+// table, storing "channelID:messageID" under statusMessageMetaKey(serverID).
 type sqliteStatusStore struct {
-	db *sql.DB
+	db       *sql.DB
+	serverID string
 }
 
-func newSqliteStatusStore(db *sql.DB) *sqliteStatusStore {
-	return &sqliteStatusStore{db: db}
+func newSqliteStatusStore(db *sql.DB, serverID string) *sqliteStatusStore {
+	return &sqliteStatusStore{db: db, serverID: serverID}
 }
 
 func (s *sqliteStatusStore) loadStatusMessage() (string, string, error) {
 	var raw string
-	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, statusMessageMetaKey).Scan(&raw)
+	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, statusMessageMetaKey(s.serverID)).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
@@ -243,7 +245,7 @@ func (s *sqliteStatusStore) saveStatusMessage(channelID, messageID string) error
 	_, err := s.db.Exec(
 		`INSERT INTO meta(key, value) VALUES(?, ?)
 		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-		statusMessageMetaKey, value)
+		statusMessageMetaKey(s.serverID), value)
 	if err != nil {
 		return fmt.Errorf("save status message: %w", err)
 	}
@@ -285,7 +287,7 @@ func (a discordSessionAdapter) ChannelMessageEditEmbed(channelID, messageID stri
 func postOrEditStatusEmbed(sess statusEmbedSender, store statusMessageStore, channelID string, embed *discordgo.MessageEmbed) error {
 	storedChannel, storedMsg, err := store.loadStatusMessage()
 	if err != nil {
-		log.Printf("discord status: load stored message: %v", err)
+		componentLog("discord").Warn().Err(err).Msg("status: load stored message failed")
 		// Fall through and treat as no stored message.
 		storedChannel, storedMsg = "", ""
 	}
@@ -299,7 +301,7 @@ func postOrEditStatusEmbed(sess statusEmbedSender, store statusMessageStore, cha
 			return fmt.Errorf("edit status embed: %w", editErr)
 		}
 		// Stored message was deleted in Discord — fall through to re-send.
-		log.Printf("discord status: stored message gone, re-posting")
+		componentLog("discord").Info().Msg("status: stored message gone, re-posting")
 	}
 
 	return sendAndPersist(sess, store, channelID, embed)
@@ -431,7 +433,7 @@ func applyDiscordStatusLoop(cfg appConfig) {
 	statusLoopMu.Unlock()
 
 	go runStatusLoop(ctx, deps)
-	log.Printf("discord status: embed loop started (channel %s, every %s)", channelID, deps.interval)
+	componentLog("discord").Info().Str("channel_id", channelID).Dur("interval", deps.interval).Msg("status: embed loop started")
 }
 
 // runStatusTick collects status data, builds the embed, and posts-or-edits it.
@@ -443,36 +445,45 @@ func runStatusTick(ctx context.Context, channelID string) {
 		return // bot not connected yet; try again next tick
 	}
 	if globalStore == nil {
-		log.Printf("discord status: unified store unavailable — skipping tick")
+		componentLog("discord").Info().Msg("status: unified store unavailable — skipping tick")
 		return
 	}
 
-	data := collectStatusData(ctx)
+	sc := globalRegistry.Active()
+	data := collectStatusData(ctx, sc, globalStore)
 	embed := buildStatusEmbed(data, time.Now())
 
-	store := newSqliteStatusStore(globalStore)
+	storeScope := "default"
+	if sc != nil {
+		storeScope = sc.StoreScope
+	}
+	store := newSqliteStatusStore(globalStore, storeScope)
 	if err := postOrEditStatusEmbed(discordSessionAdapter{sess: sess}, store, channelID, embed); err != nil {
-		log.Printf("discord status: post/edit: %v", err)
+		componentLog("discord").Warn().Str("server_id", storeScope).Err(err).Msg("status: post/edit failed")
 	}
 }
 
 // collectStatusData gathers the live status from the control plane, DB, and the
 // session store. Every source is best-effort: a failure degrades that field
 // rather than aborting the tick.
-func collectStatusData(ctx context.Context) statusEmbedData {
+func collectStatusData(ctx context.Context, sc *ServerContext, sdb *sql.DB) statusEmbedData {
 	data := statusEmbedData{State: serverStateOffline}
-	applyControlStatus(ctx, &data)
-	applyDBStats(ctx, &data)
-	applyUnique24h(ctx, &data)
+	applyControlStatus(ctx, sc, &data)
+	applyDBStats(ctx, sc, &data)
+	serverID := "default"
+	if sc != nil {
+		serverID = sc.StoreScope
+	}
+	applyUnique24h(ctx, sdb, serverID, &data)
 	return data
 }
 
 // applyControlStatus fills State, Maps, and CurrentOnline from the control plane.
-func applyControlStatus(ctx context.Context, data *statusEmbedData) {
-	if globalControl == nil {
+func applyControlStatus(ctx context.Context, sc *ServerContext, data *statusEmbedData) {
+	if sc == nil || sc.Control == nil {
 		return
 	}
-	status, err := globalControl.GetStatus(ctx, globalExecutor)
+	status, err := sc.Control.GetStatus(ctx, sc.Executor)
 	data.State = deriveServerState(status, err)
 	if err != nil || status == nil {
 		return
@@ -489,13 +500,13 @@ func applyControlStatus(ctx context.Context, data *statusEmbedData) {
 
 // applyDBStats fills TotalPlayers and supplies fallbacks for CurrentOnline and
 // Maps when the control plane provided none.
-func applyDBStats(ctx context.Context, data *statusEmbedData) {
-	if globalDB == nil {
+func applyDBStats(ctx context.Context, sc *ServerContext, data *statusEmbedData) {
+	if sc == nil || sc.DB == nil {
 		return
 	}
-	stats, err := cmdFetchServerStats(ctx, globalDB)
+	stats, err := cmdFetchServerStats(ctx, sc.DB)
 	if err != nil {
-		log.Printf("discord status: server stats: %v", err)
+		serverLog("discord", sc).Warn().Err(err).Msg("status: server stats query failed")
 		return
 	}
 	data.TotalPlayers = stats.TotalPlayers
@@ -508,10 +519,10 @@ func applyDBStats(ctx context.Context, data *statusEmbedData) {
 }
 
 // applyUnique24h fills UniquePlayers from the session store.
-func applyUnique24h(ctx context.Context, data *statusEmbedData) {
-	uniq, err := countUniquePlayers24h(ctx, globalStore, time.Now())
+func applyUnique24h(ctx context.Context, sdb *sql.DB, serverID string, data *statusEmbedData) {
+	uniq, err := countUniquePlayers24h(ctx, sdb, serverID, time.Now())
 	if err != nil {
-		log.Printf("discord status: unique 24h: %v", err)
+		componentLog("discord").Warn().Str("server_id", serverID).Err(err).Msg("status: unique 24h query failed")
 		return
 	}
 	data.UniquePlayers = uniq

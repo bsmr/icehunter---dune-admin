@@ -132,6 +132,83 @@ func TestStartWebProxies_StartStop(t *testing.T) {
 	}
 }
 
+// dialViaExecutor binds the dial path to a specific server's executor: a nil
+// executor dials the requested address directly, a set executor tunnels through
+// it (so the proxy reaches hosts reachable from wherever that server runs).
+func TestDialViaExecutor(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, "ok")
+	}))
+	defer backend.Close()
+	bu, _ := url.Parse(backend.URL)
+
+	// nil executor → direct net.Dial to the requested addr.
+	conn, err := dialViaExecutor(nil)("tcp", bu.Host)
+	if err != nil {
+		t.Fatalf("nil exec dial: %v", err)
+	}
+	_ = conn.Close()
+
+	// set executor → routed through it; the requested addr is recorded but the
+	// executor connects to its own target instead.
+	rec := &dialRecordingExecutor{target: bu.Host}
+	conn, err = dialViaExecutor(rec)("tcp", "unreachable.invalid:9999")
+	if err != nil {
+		t.Fatalf("exec dial: %v", err)
+	}
+	_ = conn.Close()
+	if rec.dialAddr != "unreachable.invalid:9999" {
+		t.Errorf("recorded dialAddr = %q, want unreachable.invalid:9999", rec.dialAddr)
+	}
+}
+
+// webProxyManager owns the active server's proxy set: apply starts it,
+// currentTargets reports it, a re-apply swaps it (old port stops serving), and
+// apply(nil) / shutdown tears it down. This is what a server switch relies on.
+func TestWebProxyManager_ApplyRebuildShutdown(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, "ok")
+	}))
+	defer upstream.Close()
+	uu, _ := url.Parse(upstream.URL)
+
+	prev := loadedConfig
+	t.Cleanup(func() { loadedConfig = prev })
+	loadedConfig = appConfig{} // auth off
+
+	m := &webProxyManager{}
+	client := &http.Client{Timeout: time.Second}
+
+	// apply → serving on the assigned port, targets reported.
+	p1 := freePort(t)
+	m.apply([]proxyTarget{{label: "a", dialAddr: uu.Host, port: p1}}, net.Dial)
+	if got := m.currentTargets(); len(got) != 1 || got[0].port != p1 {
+		t.Fatalf("currentTargets after apply = %+v", got)
+	}
+	if body := httpGet(t, fmt.Sprintf("http://127.0.0.1:%d/", p1)); body != "ok" {
+		t.Fatalf("proxy body = %q, want ok", body)
+	}
+
+	// re-apply on a new port → old listener must close (server switch).
+	p2 := freePort(t)
+	m.apply([]proxyTarget{{label: "b", dialAddr: uu.Host, port: p2}}, net.Dial)
+	if _, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/", p1)); err == nil {
+		t.Errorf("old port %d still served after rebuild", p1)
+	}
+	if body := httpGet(t, fmt.Sprintf("http://127.0.0.1:%d/", p2)); body != "ok" {
+		t.Fatalf("new proxy body = %q, want ok", body)
+	}
+
+	// shutdown → fully stopped, no targets (no active server).
+	m.shutdown()
+	if got := m.currentTargets(); got != nil {
+		t.Errorf("currentTargets after shutdown = %+v, want nil", got)
+	}
+	if _, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/", p2)); err == nil {
+		t.Errorf("port %d still served after shutdown", p2)
+	}
+}
+
 func freePort(t *testing.T) int {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

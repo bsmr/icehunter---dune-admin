@@ -207,7 +207,7 @@
     "signIn": "Sign In",
     "switchToSidenav": "Switch to side navigation",
     "switchToTopnav": "Switch to top navigation",
-    "title": "DUNE ADMIN",
+    "title": "UNE ADMIN",
     "updateAvailable": "Update available",
     "updateAvailableBody": "A new version is available: v{{current}} → v{{latest}}.",
     "updated": "Updated to {{version}}. Server is restarting…",
@@ -384,7 +384,9 @@
     "deleteSelected": "Delete selected",
     "clearSelection": "Clear selection",
     "noItems": "No items yet.",
-    "beta": "Beta"
+    "beta": "Beta",
+    "back": "Back",
+    "dismiss": "Dismiss"
   },
   "database": {
     "columnColumn": "Column",
@@ -685,7 +687,8 @@
     "groups": {
       "economy": "Economy",
       "operations": "Operations",
-      "playerWorld": "Player World"
+      "playerWorld": "Player World",
+      "dashboard": "Home"
     },
     "liveMap": "Live Map",
     "logs": "Logs",
@@ -697,7 +700,8 @@
     "events": "Live Events",
     "battlepass": "Battlepass",
     "menu": "Navigation",
-    "permissions": "Permissions"
+    "permissions": "Permissions",
+    "dashboard": "Dashboard"
   },
   "players": {
     "actions": {
@@ -1218,6 +1222,10 @@
       "applyReload": "Apply & Reload",
       "backendUrlHint": "Only needed when the UI is served from a different host (SSH tunnel, CDN). Leave blank for single-binary setup.",
       "backupDir": "Backup directory",
+      "dangerZone": "Danger Zone",
+      "deleteServer": "Delete server",
+      "deleteServerNamed": "Delete server \"{{name}}\"",
+      "deleteServerHint": "Permanently remove this server and all of its stored data. This cannot be undone.",
       "defaultIniDir": "Default INI directory",
       "defaultIniDirHint": "DefaultGame.ini base layer",
       "directorUrl": "Director URL",
@@ -1312,7 +1320,8 @@
       "authDashboard": "Dashboard login",
       "authDiscord": "Discord login (OAuth)",
       "authOwners": "Owners",
-      "discordStatus": "Status Embed"
+      "discordStatus": "Status Embed",
+      "marketBot": "Market Bot"
     },
     "ssh": {
       "hostPort": "Host : port",
@@ -1327,7 +1336,13 @@
       "connection": "Connection",
       "control": "Control",
       "discord": "Discord",
-      "auth": "Auth"
+      "auth": "Auth",
+      "ssh": "SSH",
+      "server": "Server & Broker"
+    },
+    "scope": {
+      "server": "Server",
+      "admin": "DuneAdmin"
     },
     "discord": {
       "hint": "Follow these steps to create and connect your Discord bot:",
@@ -1392,6 +1407,10 @@
       "cookieStrictDesc": "The cookie is never sent on any cross-site request — the strongest CSRF protection. Incompatible with Discord login (the OAuth redirect can't carry it); use only with local username/password accounts.",
       "cookieNone": "None",
       "cookieNoneDesc": "The cookie is sent on all requests, including cross-origin. Only needed when the dashboard UI and backend are served from different domains (e.g. a CDN split). Requires HTTPS."
+    },
+    "marketBot": {
+      "enabled": "Enable market bot for this server",
+      "enabledHint": "Runs the embedded market bot against this server. Tuning is shared across servers and lives in the Market tab."
     }
   },
   "storage": {
@@ -1894,5 +1913,72 @@
     "cascadeHint": "Every signed-in user inherits the Default row; Guests and each Discord role add to it. An empty grant is denied.",
     "inherited": "(inherited)",
     "resetDefaults": "Reset to defaults"
+  },
+  "servers": {
+    "removeTitle": "Remove Server",
+    "removeDesc": "Permanently remove \"{{name}}\" and all its stored data? This cannot be undone.",
+    "removeConfirm": "Remove",
+    "removeFailed": "Remove failed",
+    "removeWarning": "Permanently remove \"{{name}}\" and all of its stored data. This cannot be undone.",
+    "removeConfirmLabel": "Type {{name}} to confirm",
+    "removeCountdown": "Wait {{seconds}}s…"
+  },
+  "setup": {
+    "connecting": "Connecting…",
+    "discovering": "Auto-discovering server settings…",
+    "saveAndConnect": "Save & Connect",
+    "serverName": "Server name",
+    "serverNamePlaceholder": "e.g. Production",
+    "nameRequired": "Server name is required",
+    "nameInvalid": "Server name must contain letters or numbers",
+    "connectTimeout": "Still not connected — check your settings and try again.",
+    "addServerTitle": "Add a server"
+  },
+  "discovery": {
+    "title": "Auto-discovering settings",
+    "subtitle": "Reading values from your server…",
+    "failed": "Could not auto-discover — fill in the values manually.",
+    "steps": {
+      "connect": "Connecting over SSH",
+      "namespace": "Discovering namespace",
+      "dbPod": "Locating database pod",
+      "dbCreds": "Reading database credentials",
+      "brokers": "Locating broker pods",
+      "gameProc": "Locating game server process",
+      "containers": "Inspecting containers",
+      "finalize": "Finalizing"
+    }
+  },
+  "manage": {
+    "title": "Manage server",
+    "serverName": "Server name"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Servers and setup at a glance",
+    "loadFailed": "Failed to load server health: {{message}}",
+    "running": "Running",
+    "offline": "Offline",
+    "playersOnline": "{{count}} online",
+    "view": "View",
+    "manage": "Manage",
+    "empty": {
+      "title": "No servers yet",
+      "body": "Add your first game server to get started. You can also set up auth or Discord below — all optional.",
+      "addServer": "Add your first server",
+      "guestBody": "No servers have been configured yet."
+    },
+    "onboarding": {
+      "auth": {
+        "title": "Set up login / auth",
+        "body": "Require a login to access the dashboard. Optional — leave off for a trusted local network.",
+        "cta": "Set up auth"
+      },
+      "discord": {
+        "title": "Connect a Discord bot",
+        "body": "Send notifications and let roles map to permissions. Optional.",
+        "cta": "Connect Discord"
+      }
+    }
   }
 }

@@ -36,7 +36,7 @@ func TestRecordSessions_StartsNewSession(t *testing.T) {
 	t.Parallel()
 	db := openTestSessionDB(t)
 
-	if err := recordSessions(context.Background(), []int64{42}, db); err != nil {
+	if err := recordSessions(context.Background(), []int64{42}, db, "default"); err != nil {
 		t.Fatalf("recordSessions: %v", err)
 	}
 
@@ -54,10 +54,10 @@ func TestRecordSessions_ClosesSession(t *testing.T) {
 	db := openTestSessionDB(t)
 	ctx := context.Background()
 
-	if err := recordSessions(ctx, []int64{42}, db); err != nil {
+	if err := recordSessions(ctx, []int64{42}, db, "default"); err != nil {
 		t.Fatalf("first record: %v", err)
 	}
-	if err := recordSessions(ctx, []int64{}, db); err != nil {
+	if err := recordSessions(ctx, []int64{}, db, "default"); err != nil {
 		t.Fatalf("second record (offline): %v", err)
 	}
 
@@ -75,10 +75,10 @@ func TestRecordSessions_ContinuesActiveSession(t *testing.T) {
 	db := openTestSessionDB(t)
 	ctx := context.Background()
 
-	if err := recordSessions(ctx, []int64{42}, db); err != nil {
+	if err := recordSessions(ctx, []int64{42}, db, "default"); err != nil {
 		t.Fatalf("first record: %v", err)
 	}
-	if err := recordSessions(ctx, []int64{42}, db); err != nil {
+	if err := recordSessions(ctx, []int64{42}, db, "default"); err != nil {
 		t.Fatalf("second record: %v", err)
 	}
 
@@ -119,7 +119,7 @@ func TestGetSessionStats(t *testing.T) {
 		t.Fatalf("insert open session: %v", err)
 	}
 
-	stats, err := getSessionStats(ctx, db, 7)
+	stats, err := getSessionStats(ctx, db, "default", 7)
 	if err != nil {
 		t.Fatalf("getSessionStats: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestGetSessionStats_NoSessions(t *testing.T) {
 	t.Parallel()
 	db := openTestSessionDB(t)
 
-	stats, err := getSessionStats(context.Background(), db, 999)
+	stats, err := getSessionStats(context.Background(), db, "default", 999)
 	if err != nil {
 		t.Fatalf("getSessionStats for unknown account: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestCloseOrphanedSessions(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 
-	if err := closeOrphanedSessions(db); err != nil {
+	if err := closeOrphanedSessions(db, "default"); err != nil {
 		t.Fatalf("closeOrphanedSessions: %v", err)
 	}
 
@@ -168,5 +168,42 @@ func TestCloseOrphanedSessions(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected orphaned session closed with 0 duration, got count=%d", count)
+	}
+}
+
+func TestRecordSessions_ServerIDIsolation(t *testing.T) {
+	t.Parallel()
+	db := openTestSessionDB(t)
+	ctx := context.Background()
+
+	// server A sees account 1; server B sees account 2 — they must not bleed.
+	if err := recordSessions(ctx, []int64{1}, db, "srvA"); err != nil {
+		t.Fatalf("recordSessions srvA: %v", err)
+	}
+	if err := recordSessions(ctx, []int64{2}, db, "srvB"); err != nil {
+		t.Fatalf("recordSessions srvB: %v", err)
+	}
+
+	var countA, countB int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM play_sessions WHERE server_id='srvA'`).Scan(&countA); err != nil {
+		t.Fatalf("count srvA: %v", err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM play_sessions WHERE server_id='srvB'`).Scan(&countB); err != nil {
+		t.Fatalf("count srvB: %v", err)
+	}
+	if countA != 1 {
+		t.Errorf("srvA: want 1 session, got %d", countA)
+	}
+	if countB != 1 {
+		t.Errorf("srvB: want 1 session, got %d", countB)
+	}
+
+	// srvA stats for account 2 (a srvB account) must be zero.
+	statsA, err := getSessionStats(ctx, db, "srvA", 2)
+	if err != nil {
+		t.Fatalf("getSessionStats srvA/acct2: %v", err)
+	}
+	if statsA.SessionCount != 0 {
+		t.Errorf("srvA should not see srvB account 2: got %d sessions", statsA.SessionCount)
 	}
 }

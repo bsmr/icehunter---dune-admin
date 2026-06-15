@@ -16,6 +16,26 @@ func TestConfigDirEnvOverride(t *testing.T) {
 	}
 }
 
+// needsSetupConfigured must return false once any per-server entry exists, so a
+// multi-server install (or a server added via POST /servers) isn't stuck on the
+// setup gate just because the legacy flat db_pass is empty.
+func TestNeedsSetupConfigured_MultiServer(t *testing.T) {
+	origCfg := loadedConfig
+	origPass := dbPass
+	t.Cleanup(func() { loadedConfig = origCfg; dbPass = origPass })
+
+	dbPass = ""
+	loadedConfig = appConfig{Servers: []ServerConfig{{ID: 1}}}
+	if needsSetupConfigured() {
+		t.Error("needsSetupConfigured() = true with Servers[]; want false")
+	}
+
+	loadedConfig = appConfig{} // no servers, no flat pass
+	if !needsSetupConfigured() {
+		t.Error("needsSetupConfigured() = false with empty config; want true")
+	}
+}
+
 func TestConfigDirDefault(t *testing.T) {
 	// Ensure no override is set for this test.
 	t.Setenv("DUNE_ADMIN_CONFIG_DIR", "")

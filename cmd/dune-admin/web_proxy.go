@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -165,4 +166,77 @@ func startWebProxies(targets []proxyTarget, dial func(network, addr string) (net
 			_ = s.Shutdown(sc)
 		}
 	}
+}
+
+// dialViaExecutor binds the proxy dial path to a specific server's executor. A
+// nil executor dials directly; a set executor tunnels every connection through
+// it (the same path as that server's DB pool), so the proxy reaches hosts
+// reachable from wherever that server runs rather than from this machine.
+func dialViaExecutor(exec Executor) func(network, addr string) (net.Conn, error) {
+	return func(network, addr string) (net.Conn, error) {
+		if exec != nil {
+			return exec.Dial(network, addr)
+		}
+		return net.Dial(network, addr)
+	}
+}
+
+// webProxyManager owns the proxy set for the currently active server. The set is
+// rebuilt whenever the active server changes (boot, switch, removal) so the
+// proxies always tunnel through the active server's executor. It is the single
+// source of truth for the assigned ports the API reports to the SPA.
+type webProxyManager struct {
+	mu      sync.Mutex
+	stop    func()
+	targets []proxyTarget
+}
+
+// globalWebProxy is the process-wide proxy manager for the active server.
+var globalWebProxy = &webProxyManager{}
+
+// apply tears down the current proxy set and starts a fresh one for targets,
+// tunneling through dial. An empty/nil targets list leaves the manager stopped
+// (e.g. no active server). dial is injected for testability; production binds
+// the active server's executor via dialViaExecutor.
+func (m *webProxyManager) apply(targets []proxyTarget, dial func(network, addr string) (net.Conn, error)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.stop != nil {
+		m.stop()
+		m.stop = nil
+	}
+	if len(targets) == 0 {
+		m.targets = nil
+		return
+	}
+	m.targets = targets
+	m.stop = startWebProxies(targets, dial)
+}
+
+// currentTargets returns the proxy targets for the active server, or nil when no
+// proxies are running. The returned slice is never mutated after assignment, so
+// callers may read it without holding the lock.
+func (m *webProxyManager) currentTargets() []proxyTarget {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.targets
+}
+
+// shutdown stops all proxies and clears the targets (process teardown / no
+// active server).
+func (m *webProxyManager) shutdown() { m.apply(nil, nil) }
+
+// rebuildWebProxiesForActive rebuilds the proxy set for the registry's active
+// server, tunneling through that server's executor. With no active server it
+// tears the proxies down. Safe to call repeatedly (boot, server switch, removal).
+func rebuildWebProxiesForActive() {
+	active := globalRegistry.Active()
+	if active == nil {
+		globalWebProxy.shutdown()
+		return
+	}
+	ifaces := append(append([]webInterface{}, getWebInterfaces()...),
+		discoveredWebInterfaces(context.Background(), active.Control, active.Executor)...)
+	targets := resolveProxyTargets(ifaces, listenPortNum())
+	globalWebProxy.apply(targets, dialViaExecutor(active.Executor))
 }

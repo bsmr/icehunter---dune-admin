@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -209,7 +208,7 @@ func dispatchDiscordCommand(ctx context.Context, i discordInteraction, cfg disco
 func handleDiscordStatus(ctx context.Context, deps discordDeps) discordReply {
 	summary, err := deps.status(ctx)
 	if err != nil {
-		log.Printf("discord /status: %v", err)
+		componentLog("discord").Warn().Err(err).Msg("/status failed")
 		return discordReply{Content: "Error fetching server status.", Ephemeral: true}
 	}
 	return discordReply{Content: summary}
@@ -224,7 +223,7 @@ func handleDiscordLookup(ctx context.Context, opts map[string]any, deps discordD
 
 	players, err := deps.lookupPlayer(ctx, name)
 	if err != nil {
-		log.Printf("discord /lookup %q: %v", name, err)
+		componentLog("discord").Warn().Str("name", name).Err(err).Msg("/lookup failed")
 		return discordReply{Content: "Error looking up player.", Ephemeral: true}
 	}
 	if len(players) == 0 {
@@ -257,7 +256,7 @@ func handleDiscordGiveCurrency(ctx context.Context, opts map[string]any, deps di
 
 	players, err := deps.lookupPlayer(ctx, name)
 	if err != nil {
-		log.Printf("discord /give-currency lookup %q: %v", name, err)
+		componentLog("discord").Warn().Str("name", name).Err(err).Msg("/give-currency lookup failed")
 		return discordReply{Content: "Error looking up player.", Ephemeral: true}
 	}
 	if len(players) == 0 {
@@ -273,7 +272,7 @@ func handleDiscordGiveCurrency(ctx context.Context, opts map[string]any, deps di
 	p := players[0]
 	newBalance, err := deps.giveCurrency(ctx, p.ControllerID, amount)
 	if err != nil {
-		log.Printf("discord /give-currency player=%d amount=%d: %v", p.ControllerID, amount, err)
+		componentLog("discord").Warn().Int64("player_id", p.ControllerID).Int64("amount", amount).Err(err).Msg("/give-currency grant failed")
 		return discordReply{Content: "Error granting currency.", Ephemeral: true}
 	}
 	return discordReply{
@@ -559,7 +558,7 @@ func handleGetDiscordRolesInner(w http.ResponseWriter, guildID string, fetch rol
 			jsonErr(w, err, http.StatusServiceUnavailable)
 			return
 		}
-		log.Printf("handleGetDiscordRoles: %v", err)
+		componentLog("discord").Error().Err(err).Msg("handleGetDiscordRoles failed")
 		jsonErr(w, fmt.Errorf("internal error"), http.StatusInternalServerError)
 		return
 	}

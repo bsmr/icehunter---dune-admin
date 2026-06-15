@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +57,7 @@ func loadScheduledRestartConfig() {
 	}
 	var c scheduledRestartConfig
 	if err := json.Unmarshal(data, &c); err != nil {
-		log.Printf("scheduled-restarts: config parse: %v", err)
+		componentLog("scheduled_restart").Error().Err(err).Msg("config parse failed")
 		return
 	}
 	if c.WarnMinutes <= 0 {
@@ -102,7 +101,7 @@ func setRestartLastFired(ts int64) {
 	defer restartMu.Unlock()
 	restartCfg.LastFired = ts
 	if err := persistRestartConfigLocked(); err != nil {
-		log.Printf("scheduled-restarts: persist last_fired: %v", err)
+		componentLog("scheduled_restart").Error().Err(err).Msg("persist last_fired failed")
 	}
 }
 
@@ -264,13 +263,13 @@ func restartSchedulerTickOnce(ctx context.Context, now, warnedFor time.Time) tim
 func fireScheduledRestart(ctx context.Context, at time.Time) {
 	// Watermark first so a failed/looping restart can't re-fire the same occurrence.
 	setRestartLastFired(at.Unix())
-	log.Printf("scheduled-restarts: firing restart scheduled for %s", at.Format(time.RFC3339))
+	componentLog("scheduled_restart").Info().Str("scheduled_for", at.Format(time.RFC3339)).Msg("firing restart")
 	if globalControl == nil || globalExecutor == nil {
-		log.Printf("scheduled-restarts: control plane not connected; restart skipped")
+		componentLog("scheduled_restart").Warn().Msg("control plane not connected; restart skipped")
 		return
 	}
 	if _, err := globalControl.ExecCommand(ctx, globalExecutor, "restart"); err != nil {
-		log.Printf("scheduled-restarts: restart failed: %v", err)
+		componentLog("scheduled_restart").Error().Err(err).Msg("restart failed")
 	}
 }
 
@@ -279,9 +278,9 @@ func broadcastRestartWarning(_ scheduledRestartConfig, at, now time.Time) {
 	if mins < 1 {
 		mins = 1
 	}
-	log.Printf("scheduled-restarts: broadcasting %d-min restart warning", mins)
+	componentLog("scheduled_restart").Info().Int("warn_minutes", mins).Msg("broadcasting restart warning")
 	// shutdownType, timestamp (when), frequency (re-announce sec), duration (countdown sec), cancel.
 	if err := rmqServiceBroadcastShutdown("Restart", at.Unix(), 60, mins*60, false); err != nil {
-		log.Printf("scheduled-restarts: warning broadcast failed: %v", err)
+		componentLog("scheduled_restart").Error().Err(err).Msg("warning broadcast failed")
 	}
 }

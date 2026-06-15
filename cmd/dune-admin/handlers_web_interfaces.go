@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 )
 
@@ -17,15 +16,15 @@ type webInterfaceDiscoverer interface {
 
 // discoveredWebInterfaces returns control-plane-derived links, or nil when the
 // active plane can't discover them or nothing is connected.
-func discoveredWebInterfaces(ctx context.Context) []webInterface {
-	if globalControl == nil || globalExecutor == nil {
+func discoveredWebInterfaces(ctx context.Context, ctrl ControlPlane, exec Executor) []webInterface {
+	if ctrl == nil || exec == nil {
 		return nil
 	}
-	d, ok := globalControl.(webInterfaceDiscoverer)
+	d, ok := ctrl.(webInterfaceDiscoverer)
 	if !ok {
 		return nil
 	}
-	return d.discoverWebInterfaces(ctx, globalExecutor)
+	return d.discoverWebInterfaces(ctx, exec)
 }
 
 // @Summary List configured web interfaces
@@ -39,9 +38,11 @@ func handleGetWebInterfaces(w http.ResponseWriter, r *http.Request) {
 	// enriched with its mesh-proxy port (0/omitted when not proxied) so the SPA
 	// can open it via dune-admin's own host instead of an unreachable game-side URL.
 	ifaces := getWebInterfaces()
-	discovered := discoveredWebInterfaces(r.Context())
-	combined := append(append([]webInterface{}, ifaces...), discovered...)
-	targets := resolveProxyTargets(combined, listenPortNum())
+	discovered := discoveredWebInterfaces(r.Context(), controlFromCtx(r), executorFromCtx(r))
+	// Ports come from the running proxy set for the active server (single source
+	// of truth). When the request's server is the active one, the discovered dial
+	// addresses match and each entry gets its proxy port; otherwise proxyPort is 0.
+	targets := globalWebProxy.currentTargets()
 	jsonOK(w, map[string]any{
 		"interfaces": withProxyPorts(ifaces, targets),
 		"discovered": withProxyPorts(discovered, targets),
@@ -68,7 +69,7 @@ func handleUpdateWebInterfaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := saveWebInterfaces(body.Interfaces); err != nil {
-		log.Printf("handleUpdateWebInterfaces: %v", err)
+		componentLog("web_interfaces").Error().Err(err).Msg("could not save web interfaces")
 		jsonErr(w, fmt.Errorf("could not save web interfaces"), http.StatusInternalServerError)
 		return
 	}

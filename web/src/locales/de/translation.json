@@ -205,7 +205,7 @@
     "signIn": "Anmelden",
     "switchToSidenav": "Zur Seitennavigation wechseln",
     "switchToTopnav": "Zur oberen Navigation wechseln",
-    "title": "DUNE ADMIN",
+    "title": "UNE ADMIN",
     "updateAvailable": "Update verfügbar",
     "updateAvailableBody": "Eine neue Version ist verfügbar: v{{current}} → v{{latest}}.",
     "updated": "Aktualisiert auf {{version}}. Server wird neu gestartet…",
@@ -369,7 +369,9 @@
     "deleteSelected": "Ausgewählte löschen",
     "clearSelection": "Auswahl aufheben",
     "noItems": "Noch keine Einträge.",
-    "beta": "Beta"
+    "beta": "Beta",
+    "back": "Zurück",
+    "dismiss": "Schließen"
   },
   "database": {
     "columnColumn": "Spalte",
@@ -670,7 +672,8 @@
     "groups": {
       "economy": "Wirtschaft",
       "operations": "Betrieb",
-      "playerWorld": "Spielerwelt"
+      "playerWorld": "Spielerwelt",
+      "dashboard": "Start"
     },
     "liveMap": "Live-Karte",
     "logs": "Protokolle",
@@ -682,7 +685,8 @@
     "events": "Live-Events",
     "menu": "Navigation",
     "battlepass": "Battlepass",
-    "permissions": "Berechtigungen"
+    "permissions": "Berechtigungen",
+    "dashboard": "Dashboard"
   },
   "players": {
     "actions": {
@@ -1213,7 +1217,11 @@
       "serverIniDir": "Server-INI-Verzeichnis",
       "serverIniDirHint": "UserGame.ini-Speicherort",
       "url": "URL",
-      "urlHint": "im Browser gespeichert, nicht auf dem Server"
+      "urlHint": "im Browser gespeichert, nicht auf dem Server",
+      "dangerZone": "Gefahrenzone",
+      "deleteServer": "Server löschen",
+      "deleteServerNamed": "Server „{{name}}\" löschen",
+      "deleteServerHint": "Diesen Server und alle gespeicherten Daten dauerhaft entfernen. Dies kann nicht rückgängig gemacht werden."
     },
     "amp": {
       "containerName": "Containername",
@@ -1296,7 +1304,8 @@
       "authDashboard": "Dashboard-Anmeldung",
       "authDiscord": "Discord-Anmeldung (OAuth)",
       "authOwners": "Besitzer",
-      "discordStatus": "Status-Embed"
+      "discordStatus": "Status-Embed",
+      "marketBot": "Markt-Bot"
     },
     "ssh": {
       "hostPort": "Host : Port",
@@ -1376,6 +1385,14 @@
       "cookieStrictDesc": "Das Cookie wird bei keiner seitenübergreifenden Anfrage gesendet — stärkster CSRF-Schutz. Nicht kompatibel mit Discord-Anmeldung (der OAuth-Redirect kann es nicht mitführen); nur mit lokalen Benutzerkonten verwenden.",
       "cookieNone": "Keine",
       "cookieNoneDesc": "Das Cookie wird bei allen Anfragen gesendet, auch ursprungsübergreifend. Nur nötig, wenn UI und Backend auf verschiedenen Domains laufen (z. B. CDN-Trennung). Erfordert HTTPS."
+    },
+    "scope": {
+      "server": "Server",
+      "admin": "DuneAdmin"
+    },
+    "marketBot": {
+      "enabled": "Markt-Bot für diesen Server aktivieren",
+      "enabledHint": "Führt den eingebetteten Markt-Bot für diesen Server aus. Die Feineinstellungen werden serverübergreifend geteilt und befinden sich im Markt-Tab."
     }
   },
   "storage": {
@@ -1869,5 +1886,72 @@
     "placeholder": "Spieler suchen…",
     "loadFailed": "Spieler konnten nicht geladen werden: {{message}}",
     "loading": "Spieler werden geladen…"
+  },
+  "servers": {
+    "removeTitle": "Server entfernen",
+    "removeDesc": "„{{name}}\" und alle gespeicherten Daten dauerhaft entfernen? Dies kann nicht rückgängig gemacht werden.",
+    "removeConfirm": "Entfernen",
+    "removeFailed": "Entfernen fehlgeschlagen",
+    "removeWarning": "„{{name}}“ und alle gespeicherten Daten dauerhaft entfernen. Dies kann nicht rückgängig gemacht werden.",
+    "removeConfirmLabel": "Zum Bestätigen {{name}} eingeben",
+    "removeCountdown": "{{seconds}}s warten…"
+  },
+  "setup": {
+    "discovering": "Servereinstellungen werden automatisch erkannt…",
+    "connecting": "Verbindung wird hergestellt…",
+    "saveAndConnect": "Speichern & Verbinden",
+    "serverName": "Servername",
+    "serverNamePlaceholder": "z. B. Produktion",
+    "nameRequired": "Servername ist erforderlich",
+    "nameInvalid": "Der Servername muss Buchstaben oder Zahlen enthalten",
+    "connectTimeout": "Immer noch nicht verbunden — überprüfe deine Einstellungen und versuche es erneut.",
+    "addServerTitle": "Server hinzufügen"
+  },
+  "discovery": {
+    "title": "Einstellungen werden automatisch erkannt",
+    "subtitle": "Werte werden vom Server gelesen…",
+    "failed": "Automatische Erkennung fehlgeschlagen — bitte Werte manuell eingeben.",
+    "steps": {
+      "connect": "Verbindung über SSH",
+      "namespace": "Namespace wird ermittelt",
+      "dbPod": "Datenbank-Pod wird gesucht",
+      "dbCreds": "Datenbank-Zugangsdaten werden gelesen",
+      "brokers": "Broker-Pods werden gesucht",
+      "gameProc": "Spielserver-Prozess wird gesucht",
+      "containers": "Container werden geprüft",
+      "finalize": "Wird abgeschlossen"
+    }
+  },
+  "manage": {
+    "title": "Server verwalten",
+    "serverName": "Servername"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Server und Einrichtung auf einen Blick",
+    "loadFailed": "Serverstatus konnte nicht geladen werden: {{message}}",
+    "running": "Läuft",
+    "offline": "Offline",
+    "playersOnline": "{{count}} online",
+    "view": "Ansehen",
+    "manage": "Verwalten",
+    "empty": {
+      "title": "Noch keine Server",
+      "body": "Füge deinen ersten Spielserver hinzu, um zu starten. Du kannst unten auch Auth oder Discord einrichten — alles optional.",
+      "addServer": "Ersten Server hinzufügen",
+      "guestBody": "Es wurden noch keine Server konfiguriert."
+    },
+    "onboarding": {
+      "auth": {
+        "title": "Anmeldung / Auth einrichten",
+        "body": "Eine Anmeldung für den Zugriff aufs Dashboard verlangen. Optional — im vertrauenswürdigen lokalen Netzwerk weglassen.",
+        "cta": "Auth einrichten"
+      },
+      "discord": {
+        "title": "Discord-Bot verbinden",
+        "body": "Benachrichtigungen senden und Rollen auf Berechtigungen abbilden. Optional.",
+        "cta": "Discord verbinden"
+      }
+    }
   }
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 )
@@ -80,7 +79,7 @@ func handleUpdateScheduledBackups(w http.ResponseWriter, r *http.Request) {
 	cur.Rules = body.Rules
 	cur.KeepN = body.KeepN
 	if err := saveScheduledBackupConfig(cur); err != nil {
-		log.Printf("handleUpdateScheduledBackups: %v", err)
+		componentLog("scheduled_backup").Error().Err(err).Msg("save schedule failed")
 		jsonErr(w, fmt.Errorf("could not save schedule"), http.StatusInternalServerError)
 		return
 	}

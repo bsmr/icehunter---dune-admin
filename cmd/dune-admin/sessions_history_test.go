@@ -22,7 +22,7 @@ func TestGetSessionHistory_ReturnsSortedClosedSessions(t *testing.T) {
 		t.Fatalf("insert open session: %v", err)
 	}
 
-	recs, err := getSessionHistory(ctx, db, 42, 50)
+	recs, err := getSessionHistory(ctx, db, "default", 42, 50)
 	if err != nil {
 		t.Fatalf("getSessionHistory: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestGetSessionHistory_ReturnsSortedClosedSessions(t *testing.T) {
 func TestGetSessionHistory_Empty(t *testing.T) {
 	t.Parallel()
 	db := openTestSessionDB(t)
-	recs, err := getSessionHistory(context.Background(), db, 999, 50)
+	recs, err := getSessionHistory(context.Background(), db, "default", 999, 50)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestGetSessionHistory_RespectsLimit(t *testing.T) {
 		}
 	}
 
-	recs, err := getSessionHistory(ctx, db, 77, 3)
+	recs, err := getSessionHistory(ctx, db, "default", 77, 3)
 	if err != nil {
 		t.Fatalf("getSessionHistory: %v", err)
 	}

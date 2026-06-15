@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
@@ -55,11 +54,11 @@ func startEmbeddedDiscordBotIfEnabled(cfg appConfig) context.CancelFunc {
 		return nil
 	}
 	if cfg.DiscordBotToken == "" {
-		log.Println("discord: bot enabled but discord_bot_token is not set — skipping")
+		componentLog("discord").Info().Msg("bot enabled but discord_bot_token is not set — skipping")
 		return nil
 	}
 	if cfg.DiscordGuildID == "" {
-		log.Println("discord: bot enabled but discord_guild_id is not set — skipping")
+		componentLog("discord").Info().Msg("bot enabled but discord_guild_id is not set — skipping")
 		return nil
 	}
 
@@ -141,17 +140,17 @@ func discordConnect(ctx context.Context, cfg appConfig) {
 // command registration, discord_links table creation, and startup announcement.
 func discordPostOpen(dg *discordgo.Session, cfg appConfig, dcfg discordConfig) {
 	if err := registerDiscordCommands(dg, cfg.DiscordGuildID); err != nil {
-		log.Printf("discord: command registration failed: %v", err)
+		componentLog("discord").Warn().Err(err).Msg("command registration failed")
 	}
 
 	if globalDB != nil {
 		if err := cmdEnsureDiscordLinksTable(context.Background(), globalDB); err != nil {
-			log.Printf("discord: failed to ensure discord_links table: %v", err)
+			componentLog("discord").Warn().Err(err).Msg("failed to ensure discord_links table")
 		}
 	}
 
 	setDiscordState(dg, cfg.DiscordGuildID)
-	log.Printf("discord: bot connected (guild %s)", cfg.DiscordGuildID)
+	componentLog("discord").Info().Str("guild_id", cfg.DiscordGuildID).Msg("bot connected")
 	// No "bot connected" announce — it spams the channel on every (re)connect.
 	// Live connection status is surfaced by the persistent status embed (#188).
 }
@@ -160,10 +159,10 @@ func discordPostOpen(dg *discordgo.Session, cfg appConfig, dcfg discordConfig) {
 func discordShutdownWatcher(ctx context.Context, dg *discordgo.Session) {
 	<-ctx.Done()
 	if err := dg.Close(); err != nil {
-		log.Printf("discord: session close error: %v", err)
+		componentLog("discord").Warn().Err(err).Msg("session close error")
 	}
 	setDiscordState(nil, "")
-	log.Println("discord: bot disconnected")
+	componentLog("discord").Info().Msg("bot disconnected")
 }
 
 // handleDiscordInteraction extracts the interaction into our internal types
@@ -244,7 +243,7 @@ func sendDiscordReply(s *discordgo.Session, i *discordgo.InteractionCreate, repl
 		},
 	})
 	if err != nil {
-		log.Printf("discord: failed to respond to interaction: %v", err)
+		componentLog("discord").Warn().Err(err).Msg("failed to respond to interaction")
 	}
 }
 
@@ -346,24 +345,42 @@ func postDiscordAnnouncement(channelID, message string) error {
 
 // ── Dep wrappers ──────────────────────────────────────────────────────────────
 
-// discordStatusDep is the live status dep: fetches online/total counts.
+// discordStatusDep is the live status dep: aggregates online/total counts
+// across all registered servers (multi-server aware).
 func discordStatusDep(ctx context.Context) (string, error) {
-	if globalDB == nil {
-		return "", fmt.Errorf("database not connected")
-	}
-	var online, total int64
-	err := globalDB.QueryRow(ctx, `
+	const q = `
 		SELECT
 			COUNT(*) FILTER (WHERE COALESCE(ps.online_status::text, 'Offline') <> 'Offline'),
 			COUNT(*)
 		FROM dune.actors a
 		LEFT JOIN dune.player_state ps ON ps.account_id = a.owner_account_id
-		WHERE a.class ILIKE '%PlayerCharacter%' AND a.owner_account_id <> $1`,
-		gmIdentityAccountID).Scan(&online, &total)
-	if err != nil {
-		return "", fmt.Errorf("status query: %w", err)
+		WHERE a.class ILIKE '%PlayerCharacter%' AND a.owner_account_id <> $1`
+
+	servers := globalRegistry.All()
+	if len(servers) == 0 {
+		if globalDB == nil {
+			return "", fmt.Errorf("database not connected")
+		}
+		var online, total int64
+		if err := globalDB.QueryRow(ctx, q, gmIdentityAccountID).Scan(&online, &total); err != nil {
+			return "", fmt.Errorf("status query: %w", err)
+		}
+		return fmt.Sprintf("🌐 Server online · **%d / %d** players active", online, total), nil
 	}
-	return fmt.Sprintf("🌐 Server online · **%d / %d** players active", online, total), nil
+
+	var totalOnline, totalPlayers int64
+	for _, sc := range servers {
+		if sc.DB == nil {
+			continue
+		}
+		var online, total int64
+		if err := sc.DB.QueryRow(ctx, q, gmIdentityAccountID).Scan(&online, &total); err != nil {
+			return "", fmt.Errorf("status query (%s): %w", sc.ID, err)
+		}
+		totalOnline += online
+		totalPlayers += total
+	}
+	return fmt.Sprintf("🌐 Server online · **%d / %d** players active", totalOnline, totalPlayers), nil
 }
 
 // ── Pointer helpers ───────────────────────────────────────────────────────────

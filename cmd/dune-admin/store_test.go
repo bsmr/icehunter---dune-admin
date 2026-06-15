@@ -140,7 +140,7 @@ func TestMigrateLegacyStores_ImportsData(t *testing.T) {
 	}
 	// give-packs config imported.
 	var packsJSON string
-	if err := db.QueryRow(`SELECT packs_json FROM give_packs_config WHERE id = 1`).Scan(&packsJSON); err != nil {
+	if err := db.QueryRow(`SELECT packs_json FROM give_packs_config WHERE server_id = 'default'`).Scan(&packsJSON); err != nil {
 		t.Fatalf("read imported give_packs_config: %v", err)
 	}
 	if packsJSON == "" || packsJSON == "[]" {

@@ -205,7 +205,7 @@
     "signIn": "Giriş Yap",
     "switchToSidenav": "Yan gezintiye geç",
     "switchToTopnav": "Üst gezintiye geç",
-    "title": "DUNE ADMIN",
+    "title": "UNE ADMIN",
     "updateAvailable": "Güncelleme mevcut",
     "updateAvailableBody": "Yeni bir sürüm mevcut: v{{current}} → v{{latest}}.",
     "updated": "{{version}} sürümüne güncellendi. Sunucu yeniden başlatılıyor…",
@@ -369,7 +369,9 @@
     "deleteSelected": "Seçilenleri sil",
     "clearSelection": "Seçimi temizle",
     "noItems": "Henüz öğe yok.",
-    "beta": "Beta"
+    "beta": "Beta",
+    "back": "Geri",
+    "dismiss": "Kapat"
   },
   "database": {
     "columnColumn": "Sütun",
@@ -670,7 +672,8 @@
     "groups": {
       "economy": "Ekonomi",
       "operations": "Operasyonlar",
-      "playerWorld": "Oyuncu Dünyası"
+      "playerWorld": "Oyuncu Dünyası",
+      "dashboard": "Ana sayfa"
     },
     "liveMap": "Canlı Harita",
     "logs": "Kayıtlar",
@@ -682,7 +685,8 @@
     "events": "Canlı Etkinlikler",
     "menu": "Gezinti",
     "battlepass": "Savaş Geçişi",
-    "permissions": "İzinler"
+    "permissions": "İzinler",
+    "dashboard": "Panel"
   },
   "players": {
     "actions": {
@@ -1213,7 +1217,11 @@
       "serverIniDir": "Sunucu INI dizini",
       "serverIniDirHint": "UserGame.ini konumu",
       "url": "URL",
-      "urlHint": "tarayıcıda saklanır, sunucuda değil"
+      "urlHint": "tarayıcıda saklanır, sunucuda değil",
+      "dangerZone": "Tehlikeli Bölge",
+      "deleteServer": "Sunucuyu sil",
+      "deleteServerNamed": "\"{{name}}\" sunucusunu sil",
+      "deleteServerHint": "Bu sunucuyu ve depolanan tüm verilerini kalıcı olarak kaldırın. Bu işlem geri alınamaz."
     },
     "amp": {
       "containerName": "Konteyner adı",
@@ -1296,7 +1304,8 @@
       "authDashboard": "Panel girişi",
       "authDiscord": "Discord girişi (OAuth)",
       "authOwners": "Sahipler",
-      "discordStatus": "Durum Gömme"
+      "discordStatus": "Durum Gömme",
+      "marketBot": "Pazar Botu"
     },
     "ssh": {
       "hostPort": "Ana Bilgisayar : port",
@@ -1376,6 +1385,14 @@
       "cookieStrictDesc": "Çerez hiçbir siteler arası istekte gönderilmez — en güçlü CSRF koruması. Discord girişiyle uyumsuz (OAuth yönlendirmesi onu taşıyamaz); yalnızca yerel hesaplarla kullanın.",
       "cookieNone": "None (yok)",
       "cookieNoneDesc": "Çerez, çapraz kaynak dahil tüm isteklerde gönderilir. Yalnızca UI ve arka uç farklı alan adlarında sunulduğunda gereklidir (örn. CDN ayrımı). HTTPS gerektirir."
+    },
+    "scope": {
+      "server": "Sunucu",
+      "admin": "DuneAdmin"
+    },
+    "marketBot": {
+      "enabled": "Bu sunucu için pazar botunu etkinleştir",
+      "enabledHint": "Bu sunucuda gömülü pazar botunu çalıştırır. İnce ayarlar sunucular arasında paylaşılır ve Pazar sekmesinde bulunur."
     }
   },
   "storage": {
@@ -1869,5 +1886,72 @@
     "placeholder": "Oyuncu ara…",
     "loadFailed": "Oyuncular yüklenemedi: {{message}}",
     "loading": "Oyuncular yükleniyor…"
+  },
+  "servers": {
+    "removeTitle": "Sunucuyu Kaldır",
+    "removeDesc": "\"{{name}}\" ve depolanan tüm verileri kalıcı olarak kaldırılsın mı? Bu işlem geri alınamaz.",
+    "removeConfirm": "Kaldır",
+    "removeFailed": "Kaldırma başarısız",
+    "removeWarning": "\"{{name}}\" sunucusunu ve tüm kayıtlı verilerini kalıcı olarak kaldır. Bu işlem geri alınamaz.",
+    "removeConfirmLabel": "Onaylamak için {{name}} yazın",
+    "removeCountdown": "{{seconds}} sn bekleyin…"
+  },
+  "setup": {
+    "discovering": "Sunucu ayarları otomatik olarak keşfediliyor…",
+    "connecting": "Bağlanılıyor…",
+    "saveAndConnect": "Kaydet ve Bağlan",
+    "serverName": "Sunucu adı",
+    "serverNamePlaceholder": "örn. Production",
+    "nameRequired": "Sunucu adı gerekli",
+    "nameInvalid": "Sunucu adı harf veya rakam içermelidir",
+    "connectTimeout": "Hâlâ bağlanılamadı — ayarlarınızı kontrol edip tekrar deneyin.",
+    "addServerTitle": "Sunucu ekle"
+  },
+  "discovery": {
+    "title": "Ayarlar otomatik algılanıyor",
+    "subtitle": "Sunucunuzdan değerler okunuyor…",
+    "failed": "Otomatik algılanamadı — değerleri elle girin.",
+    "steps": {
+      "connect": "SSH ile bağlanılıyor",
+      "namespace": "Ad alanı algılanıyor",
+      "dbPod": "Veritabanı podu bulunuyor",
+      "dbCreds": "Veritabanı kimlik bilgileri okunuyor",
+      "brokers": "Broker podları bulunuyor",
+      "gameProc": "Oyun sunucusu süreci bulunuyor",
+      "containers": "Konteynerler inceleniyor",
+      "finalize": "Tamamlanıyor"
+    }
+  },
+  "manage": {
+    "title": "Sunucuyu yönet",
+    "serverName": "Sunucu adı"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "subtitle": "Sunucular ve kurulum bir bakışta",
+    "loadFailed": "Sunucu durumu yüklenemedi: {{message}}",
+    "running": "Çalışıyor",
+    "offline": "Çevrimdışı",
+    "playersOnline": "{{count}} çevrimiçi",
+    "view": "Görüntüle",
+    "manage": "Yönet",
+    "empty": {
+      "title": "Henüz sunucu yok",
+      "body": "Başlamak için ilk oyun sunucunu ekle. Aşağıdan auth veya Discord da kurabilirsin — hepsi isteğe bağlı.",
+      "addServer": "İlk sunucunu ekle",
+      "guestBody": "Henüz hiçbir sunucu yapılandırılmadı."
+    },
+    "onboarding": {
+      "auth": {
+        "title": "Giriş / auth kur",
+        "body": "Panele erişim için giriş iste. İsteğe bağlı — güvenilir bir yerel ağda kapalı bırak.",
+        "cta": "Auth kur"
+      },
+      "discord": {
+        "title": "Discord botu bağla",
+        "body": "Bildirim gönder ve rolleri izinlere eşle. İsteğe bağlı.",
+        "cta": "Discord bağla"
+      }
+    }
   }
 }

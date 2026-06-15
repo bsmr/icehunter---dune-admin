@@ -88,16 +88,17 @@ CREATE TABLE IF NOT EXISTS event_definitions (
 	updated_at          TEXT    NOT NULL
 );
 CREATE TABLE IF NOT EXISTS event_award_claims (
-	event_id    INTEGER NOT NULL,
-	version     INTEGER NOT NULL,
-	account_id  INTEGER NOT NULL,
+	server_id       TEXT    NOT NULL DEFAULT 'default',
+	event_id        INTEGER NOT NULL,
+	version         INTEGER NOT NULL,
+	account_id      INTEGER NOT NULL,
 	status          TEXT    NOT NULL,
 	claimed_at      TEXT    NOT NULL DEFAULT '',
 	attempts        INTEGER NOT NULL DEFAULT 1,
 	last_error      TEXT    NOT NULL DEFAULT '',
 	next_attempt_at TEXT    NOT NULL DEFAULT '',
 	updated_at      TEXT    NOT NULL,
-	PRIMARY KEY (event_id, version, account_id)
+	PRIMARY KEY (server_id, event_id, version, account_id)
 );`
 
 var errNotFound = fmt.Errorf("not found")
@@ -116,15 +117,38 @@ func initEventsSchema(db *sql.DB) error {
 			return fmt.Errorf("migrate events tables: %w", err)
 		}
 	}
+	if err := addServerIDColumn(db, "event_definitions"); err != nil {
+		return fmt.Errorf("migrate event_definitions server_id: %w", err)
+	}
+	if err := rebuildTableWithServerID(db, "event_award_claims", "event_award_claims_new",
+		`CREATE TABLE event_award_claims_new (
+			server_id       TEXT    NOT NULL DEFAULT 'default',
+			event_id        INTEGER NOT NULL,
+			version         INTEGER NOT NULL,
+			account_id      INTEGER NOT NULL,
+			status          TEXT    NOT NULL,
+			claimed_at      TEXT    NOT NULL DEFAULT '',
+			attempts        INTEGER NOT NULL DEFAULT 1,
+			last_error      TEXT    NOT NULL DEFAULT '',
+			next_attempt_at TEXT    NOT NULL DEFAULT '',
+			updated_at      TEXT    NOT NULL,
+			PRIMARY KEY (server_id, event_id, version, account_id)
+		)`,
+		[]string{"event_id", "version", "account_id", "status", "claimed_at", "attempts",
+			"last_error", "next_attempt_at", "updated_at"},
+	); err != nil {
+		return fmt.Errorf("migrate event_award_claims server_id: %w", err)
+	}
 	return nil
 }
 
 type eventStore struct {
-	db *sql.DB
+	db       *sql.DB
+	serverID string
 }
 
-func newEventStore(db *sql.DB) *eventStore {
-	return &eventStore{db: db}
+func newEventStore(db *sql.DB, serverID string) *eventStore {
+	return &eventStore{db: db, serverID: serverID}
 }
 
 func openEventStore(path string) (*eventStore, error) {
@@ -136,7 +160,7 @@ func openEventStore(path string) (*eventStore, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &eventStore{db: db}, nil
+	return &eventStore{db: db, serverID: "default"}, nil
 }
 
 func (s *eventStore) list() ([]eventDefinition, error) {
@@ -270,7 +294,8 @@ func (s *eventStore) listClaims(eventID int64) ([]eventClaimRecord, error) {
 	rows, err := s.db.Query(`
 		SELECT event_id, version, account_id, status, claimed_at, attempts,
 		       last_error, next_attempt_at, updated_at
-		FROM event_award_claims WHERE event_id = ? ORDER BY updated_at DESC`, eventID)
+		FROM event_award_claims WHERE server_id = ? AND event_id = ? ORDER BY updated_at DESC`,
+		s.serverID, eventID)
 	if err != nil {
 		return nil, fmt.Errorf("list event claims %d: %w", eventID, err)
 	}
@@ -293,8 +318,9 @@ func (s *eventStore) listClaims(eventID int64) ([]eventClaimRecord, error) {
 // (granted/exhausted) or resume the un-granted remainder of a reward.
 func (s *eventStore) getClaimStatus(eventID int64, version int, accountID int64) (status string, lastError string, exists bool, err error) {
 	err = s.db.QueryRow(
-		`SELECT status, last_error FROM event_award_claims WHERE event_id = ? AND version = ? AND account_id = ? LIMIT 1`,
-		eventID, version, accountID).Scan(&status, &lastError)
+		`SELECT status, last_error FROM event_award_claims
+		 WHERE server_id = ? AND event_id = ? AND version = ? AND account_id = ? LIMIT 1`,
+		s.serverID, eventID, version, accountID).Scan(&status, &lastError)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", false, nil
 	}
@@ -312,9 +338,10 @@ func (s *eventStore) claimExists(eventID int64, version int, accountID int64) (b
 	var one int
 	err := s.db.QueryRow(
 		`SELECT 1 FROM event_award_claims
-		 WHERE event_id = ? AND version = ? AND account_id = ?
+		 WHERE server_id = ? AND event_id = ? AND version = ? AND account_id = ?
 		   AND status IN (?, ?) LIMIT 1`,
-		eventID, version, accountID, eventClaimStatusGranted, eventClaimStatusExhausted).Scan(&one)
+		s.serverID, eventID, version, accountID,
+		eventClaimStatusGranted, eventClaimStatusExhausted).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -332,9 +359,9 @@ func (s *eventStore) listRetryableClaims(now time.Time) ([]eventClaimRecord, err
 		SELECT event_id, version, account_id, status, claimed_at, attempts,
 		       last_error, next_attempt_at, updated_at
 		FROM event_award_claims
-		WHERE status = ? AND attempts < ? AND next_attempt_at <= ?
+		WHERE server_id = ? AND status = ? AND attempts < ? AND next_attempt_at <= ?
 		ORDER BY next_attempt_at ASC`,
-		eventClaimStatusPending, eventGrantMaxAttempts, nowStr)
+		s.serverID, eventClaimStatusPending, eventGrantMaxAttempts, nowStr)
 	if err != nil {
 		return nil, fmt.Errorf("list retryable claims: %w", err)
 	}
@@ -356,16 +383,16 @@ func (s *eventStore) recordGranted(eventID int64, version int, accountID int64) 
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.Exec(`
 		INSERT INTO event_award_claims
-			(event_id, version, account_id, status, claimed_at, attempts, last_error, next_attempt_at, updated_at)
-		VALUES (?, ?, ?, 'granted', ?, 1, '', '', ?)
-		ON CONFLICT(event_id, version, account_id) DO UPDATE SET
+			(server_id, event_id, version, account_id, status, claimed_at, attempts, last_error, next_attempt_at, updated_at)
+		VALUES (?, ?, ?, ?, 'granted', ?, 1, '', '', ?)
+		ON CONFLICT(server_id, event_id, version, account_id) DO UPDATE SET
 			status          = 'granted',
 			claimed_at      = excluded.claimed_at,
 			attempts        = event_award_claims.attempts + 1,
 			last_error      = '',
 			next_attempt_at = '',
 			updated_at      = excluded.updated_at`,
-		eventID, version, accountID, now, now)
+		s.serverID, eventID, version, accountID, now, now)
 	if err != nil {
 		return fmt.Errorf("record granted %d/%d/%d: %w", eventID, version, accountID, err)
 	}
@@ -381,25 +408,23 @@ func (s *eventStore) recordFailed(eventID int64, version int, accountID int64, e
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339)
 	nextStr := now.Add(eventGrantRetryBackoff).Format(time.RFC3339)
-	// On insert this is attempt 1; on conflict it's the existing attempts+1.
-	// The CASE expressions decide status and next_attempt_at from that new count.
 	_, err := s.db.Exec(`
 		INSERT INTO event_award_claims
-			(event_id, version, account_id, status, claimed_at, attempts, last_error, next_attempt_at, updated_at)
+			(server_id, event_id, version, account_id, status, claimed_at, attempts, last_error, next_attempt_at, updated_at)
 		VALUES (
-			?, ?, ?,
+			?, ?, ?, ?,
 			CASE WHEN 1 >= ? THEN ? ELSE ? END,
 			'', 1, ?,
 			CASE WHEN 1 >= ? THEN '' ELSE ? END,
 			?)
-		ON CONFLICT(event_id, version, account_id) DO UPDATE SET
+		ON CONFLICT(server_id, event_id, version, account_id) DO UPDATE SET
 			status = CASE WHEN event_award_claims.attempts + 1 >= ? THEN ? ELSE ? END,
 			attempts = event_award_claims.attempts + 1,
 			last_error = excluded.last_error,
 			next_attempt_at = CASE WHEN event_award_claims.attempts + 1 >= ? THEN '' ELSE ? END,
 			updated_at = excluded.updated_at`,
 		// VALUES (insert / attempt 1)
-		eventID, version, accountID,
+		s.serverID, eventID, version, accountID,
 		eventGrantMaxAttempts, eventClaimStatusExhausted, eventClaimStatusPending,
 		errMsg,
 		eventGrantMaxAttempts, nextStr,
@@ -414,7 +439,8 @@ func (s *eventStore) recordFailed(eventID int64, version int, accountID int64, e
 }
 
 func (s *eventStore) clearClaims(eventID int64) error {
-	_, err := s.db.Exec(`DELETE FROM event_award_claims WHERE event_id = ?`, eventID)
+	_, err := s.db.Exec(`DELETE FROM event_award_claims WHERE server_id = ? AND event_id = ?`,
+		s.serverID, eventID)
 	if err != nil {
 		return fmt.Errorf("clear claims %d: %w", eventID, err)
 	}
