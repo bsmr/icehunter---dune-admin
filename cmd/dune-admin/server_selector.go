@@ -361,6 +361,10 @@ func handleReconnectServer(w http.ResponseWriter, r *http.Request) {
 		globalDB = newSC.DB
 		globalControl = newSC.Control
 		globalExecutor = newSC.Executor
+		// The active server's executor/control changed — rebuild its mesh web
+		// proxies so they tunnel through the reconnected executor (and appear once
+		// discovery works again after a DB/namespace fix).
+		rebuildWebProxiesForActive()
 	}
 	if newSC.DB != nil {
 		ensureDBSchema(newSC.DB)
