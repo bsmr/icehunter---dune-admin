@@ -42,22 +42,12 @@ func handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	jsonOK(w, cfg)
 }
 
-// maskSecrets replaces all secret fields with the display placeholder.
+// maskSecrets replaces the app-level secret fields with the display placeholder.
+// db/broker/amp secrets are per-server now (handled by maskServerSecrets); only
+// the app-wide secrets live on the global config.
 func maskSecrets(cfg *appConfig) {
-	if cfg.DBPass != "" {
-		cfg.DBPass = masked
-	}
-	if cfg.BrokerPass != "" {
-		cfg.BrokerPass = masked
-	}
-	if cfg.BrokerJWTSecret != "" {
-		cfg.BrokerJWTSecret = masked
-	}
 	if cfg.MarketBotRemoteToken != "" {
 		cfg.MarketBotRemoteToken = masked
-	}
-	if cfg.AmpAPIPass != "" {
-		cfg.AmpAPIPass = masked
 	}
 	if cfg.DiscordBotToken != "" {
 		cfg.DiscordBotToken = masked
@@ -67,6 +57,22 @@ func maskSecrets(cfg *appConfig) {
 	}
 	if cfg.AuthLocalPasswordHash != "" {
 		cfg.AuthLocalPasswordHash = masked
+	}
+	// On the DB path these flat connection secrets are empty (they moved to the
+	// per-server columns). But the legacy fallback (store unavailable) unmarshals
+	// an old flat config.yaml straight into appConfig, so mask them here too so a
+	// pre-remodel config never returns plaintext db/broker/amp passwords.
+	if cfg.DBPass != "" {
+		cfg.DBPass = masked
+	}
+	if cfg.BrokerPass != "" {
+		cfg.BrokerPass = masked
+	}
+	if cfg.BrokerJWTSecret != "" {
+		cfg.BrokerJWTSecret = masked
+	}
+	if cfg.AmpAPIPass != "" {
+		cfg.AmpAPIPass = masked
 	}
 	// Per-server entries carry their own secrets — mask them too so plaintext
 	// passwords never reach the client.
@@ -83,11 +89,7 @@ func preserveMaskedSecrets(
 	readFile func(string) ([]byte, error),
 	path string,
 ) {
-	needsRestore := cfg.DBPass == masked ||
-		cfg.BrokerPass == masked ||
-		cfg.BrokerJWTSecret == masked ||
-		cfg.MarketBotRemoteToken == masked ||
-		cfg.AmpAPIPass == masked ||
+	needsRestore := cfg.MarketBotRemoteToken == masked ||
 		cfg.DiscordBotToken == masked ||
 		cfg.AuthDiscordClientSecret == masked ||
 		cfg.AuthLocalPasswordHash == masked
@@ -100,25 +102,9 @@ func preserveMaskedSecrets(
 	if data, err := readFile(path); err == nil {
 		_ = yaml.Unmarshal(data, &old)
 	}
-	// dbPass global may differ from loadedConfig when set from env var
-	if old.DBPass == "" {
-		old.DBPass = dbPass
-	}
 
-	if cfg.DBPass == masked {
-		cfg.DBPass = old.DBPass
-	}
-	if cfg.BrokerPass == masked {
-		cfg.BrokerPass = old.BrokerPass
-	}
-	if cfg.BrokerJWTSecret == masked {
-		cfg.BrokerJWTSecret = old.BrokerJWTSecret
-	}
 	if cfg.MarketBotRemoteToken == masked {
 		cfg.MarketBotRemoteToken = old.MarketBotRemoteToken
-	}
-	if cfg.AmpAPIPass == masked {
-		cfg.AmpAPIPass = old.AmpAPIPass
 	}
 	if cfg.DiscordBotToken == masked {
 		cfg.DiscordBotToken = old.DiscordBotToken

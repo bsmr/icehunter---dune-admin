@@ -24,7 +24,7 @@ func isDuplicateColumnErr(err error) bool {
 // cache pattern; kept in our own DB so we never touch Funcom's `dune` schema.
 type welcomeStore struct {
 	db       *sql.DB
-	serverID string
+	serverID int
 }
 
 // welcomeGrantRecord is one ledger row, surfaced to the admin grants table.
@@ -40,9 +40,11 @@ type welcomeGrantRecord struct {
 	UpdatedAt      string `json:"updated_at"`
 }
 
+// welcome_grants / welcome_config are scoped to servers.id via an integer FK
+// with ON DELETE CASCADE so deleting a server purges its rows automatically.
 const welcomeStoreSchema = `
 CREATE TABLE IF NOT EXISTS welcome_grants (
-	server_id       TEXT    NOT NULL DEFAULT 'default',
+	server_id       INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
 	fls_id          TEXT    NOT NULL,
 	package_version TEXT    NOT NULL,
 	account_id      INTEGER NOT NULL,
@@ -56,12 +58,10 @@ CREATE TABLE IF NOT EXISTS welcome_grants (
 	PRIMARY KEY (server_id, fls_id, package_version, account_id)
 );
 CREATE TABLE IF NOT EXISTS welcome_config (
-	server_id                      TEXT    NOT NULL DEFAULT 'default',
+	server_id                      INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
 	enabled                        INTEGER NOT NULL DEFAULT 0,
 	scan_secs                      INTEGER NOT NULL DEFAULT 30,
 	active_version                 TEXT    NOT NULL DEFAULT '',
-	active_versions_json           TEXT    NOT NULL DEFAULT '',
-	packages_json                  TEXT    NOT NULL DEFAULT '[]',
 	welcome_message_enabled        INTEGER NOT NULL DEFAULT 0,
 	welcome_message                TEXT    NOT NULL DEFAULT '',
 	welcome_whisper_source_player  TEXT    NOT NULL DEFAULT '',
@@ -107,86 +107,15 @@ func initWelcomeSchema(db *sql.DB) error {
 	if _, err := db.Exec(welcomeStoreSchema); err != nil {
 		return fmt.Errorf("init welcome schema: %w", err)
 	}
-	// Add welcome_message columns to existing DBs that predate this feature.
-	// SQLite does not support IF NOT EXISTS in ALTER TABLE, so we attempt each
-	// column and ignore "duplicate column" errors (1 = SQLITE_ERROR when column
-	// already exists — the message contains "duplicate column name").
-	for _, col := range []string{
-		"ALTER TABLE welcome_config ADD COLUMN welcome_message_enabled INTEGER NOT NULL DEFAULT 0",
-		"ALTER TABLE welcome_config ADD COLUMN welcome_message TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN welcome_whisper_source_player TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN active_versions_json TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN motd_enabled INTEGER NOT NULL DEFAULT 0",
-		"ALTER TABLE welcome_config ADD COLUMN motd_message TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN motd_source_player TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN region_join_enabled INTEGER NOT NULL DEFAULT 0",
-		"ALTER TABLE welcome_config ADD COLUMN region_leave_enabled INTEGER NOT NULL DEFAULT 0",
-		"ALTER TABLE welcome_config ADD COLUMN region_join_template TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN region_leave_template TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE welcome_config ADD COLUMN region_chat_channel TEXT NOT NULL DEFAULT 'whisper'",
-	} {
-		if _, alterErr := db.Exec(col); alterErr != nil {
-			if !isDuplicateColumnErr(alterErr) {
-				return fmt.Errorf("migrate welcome_config: %w", alterErr)
-			}
-		}
-	}
-	if err := rebuildTableWithServerID(db, "welcome_grants", "welcome_grants_new",
-		`CREATE TABLE welcome_grants_new (
-			server_id       TEXT    NOT NULL DEFAULT 'default',
-			fls_id          TEXT    NOT NULL,
-			package_version TEXT    NOT NULL,
-			account_id      INTEGER NOT NULL,
-			character_name  TEXT    NOT NULL DEFAULT '',
-			status          TEXT    NOT NULL,
-			granted_at      TEXT    NOT NULL DEFAULT '',
-			attempts        INTEGER NOT NULL DEFAULT 1,
-			last_error      TEXT    NOT NULL DEFAULT '',
-			detected_at     TEXT    NOT NULL DEFAULT '',
-			updated_at      TEXT    NOT NULL DEFAULT '',
-			PRIMARY KEY (server_id, fls_id, package_version, account_id)
-		)`,
-		[]string{"fls_id", "package_version", "account_id", "character_name", "status",
-			"granted_at", "attempts", "last_error", "detected_at", "updated_at"},
-	); err != nil {
-		return fmt.Errorf("migrate welcome_grants server_id: %w", err)
-	}
-	if err := rebuildTableWithServerID(db, "welcome_config", "welcome_config_new",
-		`CREATE TABLE welcome_config_new (
-			server_id                      TEXT    NOT NULL DEFAULT 'default',
-			enabled                        INTEGER NOT NULL DEFAULT 0,
-			scan_secs                      INTEGER NOT NULL DEFAULT 30,
-			active_version                 TEXT    NOT NULL DEFAULT '',
-			active_versions_json           TEXT    NOT NULL DEFAULT '',
-			packages_json                  TEXT    NOT NULL DEFAULT '[]',
-			welcome_message_enabled        INTEGER NOT NULL DEFAULT 0,
-			welcome_message                TEXT    NOT NULL DEFAULT '',
-			welcome_whisper_source_player  TEXT    NOT NULL DEFAULT '',
-			motd_enabled                   INTEGER NOT NULL DEFAULT 0,
-			motd_message                   TEXT    NOT NULL DEFAULT '',
-			motd_source_player             TEXT    NOT NULL DEFAULT '',
-			region_join_enabled            INTEGER NOT NULL DEFAULT 0,
-			region_leave_enabled           INTEGER NOT NULL DEFAULT 0,
-			region_join_template           TEXT    NOT NULL DEFAULT '',
-			region_leave_template          TEXT    NOT NULL DEFAULT '',
-			region_chat_channel            TEXT    NOT NULL DEFAULT 'whisper',
-			updated_at                     TEXT    NOT NULL DEFAULT '',
-			PRIMARY KEY (server_id)
-		)`,
-		[]string{"enabled", "scan_secs", "active_version", "active_versions_json", "packages_json",
-			"welcome_message_enabled", "welcome_message", "welcome_whisper_source_player",
-			"motd_enabled", "motd_message", "motd_source_player",
-			"region_join_enabled", "region_leave_enabled", "region_join_template",
-			"region_leave_template", "region_chat_channel", "updated_at"},
-	); err != nil {
-		return fmt.Errorf("migrate welcome_config server_id: %w", err)
+	if err := initWelcomeColumnsSchema(db); err != nil {
+		return err
 	}
 	return nil
 }
 
 // newWelcomeStore wraps an already-initialised shared handle (schema created by
 // openUnifiedStore). Used in production so all stores share one SQLite file.
-func newWelcomeStore(db *sql.DB, serverID string) *welcomeStore {
+func newWelcomeStore(db *sql.DB, serverID int) *welcomeStore {
 	return &welcomeStore{db: db, serverID: serverID}
 }
 
@@ -199,7 +128,7 @@ func openWelcomeStore(path string) (*welcomeStore, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &welcomeStore{db: db, serverID: "default"}, nil
+	return &welcomeStore{db: db, serverID: defaultServerID}, nil
 }
 
 func (s *welcomeStore) close() error {
@@ -371,9 +300,10 @@ func (s *welcomeStore) saveConfig(cfg welcomeConfigRow) error {
 	if len(cfg.ActiveVersions) > 0 {
 		activeVersion = cfg.ActiveVersions[0]
 	}
-	activeVersionsJSON, err := json.Marshal(cfg.ActiveVersions)
+	// Packages and active versions live in the typed welcome child tables.
+	packages, err := parseWelcomePackagesJSON(cfg.PackagesJSON)
 	if err != nil {
-		return fmt.Errorf("marshal active_versions: %w", err)
+		return fmt.Errorf("parse packages_json: %w", err)
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	regionChatChannel := cfg.RegionChatChannel
@@ -382,18 +312,16 @@ func (s *welcomeStore) saveConfig(cfg welcomeConfigRow) error {
 	}
 	_, err = s.db.Exec(`
 		INSERT INTO welcome_config
-			(server_id, enabled, scan_secs, active_version, active_versions_json, packages_json,
+			(server_id, enabled, scan_secs, active_version,
 			 welcome_message_enabled, welcome_message, welcome_whisper_source_player,
 			 motd_enabled, motd_message, motd_source_player,
 			 region_join_enabled, region_leave_enabled, region_join_template, region_leave_template,
 			 region_chat_channel, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(server_id) DO UPDATE SET
 			enabled                       = excluded.enabled,
 			scan_secs                     = excluded.scan_secs,
 			active_version                = excluded.active_version,
-			active_versions_json          = excluded.active_versions_json,
-			packages_json                 = excluded.packages_json,
 			welcome_message_enabled       = excluded.welcome_message_enabled,
 			welcome_message               = excluded.welcome_message,
 			welcome_whisper_source_player = excluded.welcome_whisper_source_player,
@@ -406,7 +334,7 @@ func (s *welcomeStore) saveConfig(cfg welcomeConfigRow) error {
 			region_leave_template         = excluded.region_leave_template,
 			region_chat_channel           = excluded.region_chat_channel,
 			updated_at                    = excluded.updated_at`,
-		s.serverID, enabled, cfg.ScanSecs, activeVersion, string(activeVersionsJSON), cfg.PackagesJSON,
+		s.serverID, enabled, cfg.ScanSecs, activeVersion,
 		msgEnabled, cfg.WelcomeMessage, cfg.WelcomeWhisperSourcePlayer,
 		motdEnabled, cfg.MotdMessage, cfg.MotdSourcePlayer,
 		regionJoinEnabled, regionLeaveEnabled, cfg.RegionJoinTemplate, cfg.RegionLeaveTemplate,
@@ -414,7 +342,29 @@ func (s *welcomeStore) saveConfig(cfg welcomeConfigRow) error {
 	if err != nil {
 		return fmt.Errorf("save welcome config: %w", err)
 	}
+	if err := saveWelcomePackagesColumns(s.db, s.serverID, packages, cfg.ActiveVersions); err != nil {
+		return fmt.Errorf("save welcome config: %w", err)
+	}
 	return nil
+}
+
+// parseWelcomePackagesJSON decodes a packages_json blob into typed packages,
+// treating "" / "[]" / "null" as an empty library.
+func parseWelcomePackagesJSON(blob string) ([]welcomePackage, error) {
+	var packages []welcomePackage
+	if err := decodeJSONList(blob, &packages); err != nil {
+		return nil, err
+	}
+	return packages, nil
+}
+
+// decodeJSONList tolerates the empty / "null" / "[]" blob forms emitted by the
+// legacy welcome_config columns, decoding any of them to an empty slice.
+func decodeJSONList(blob string, out any) error {
+	if blob == "" || blob == "null" || blob == "[]" {
+		return nil
+	}
+	return json.Unmarshal([]byte(blob), out)
 }
 
 // loadConfig reads the single welcome_config row. Returns (row, true, nil) if
@@ -423,15 +373,14 @@ func (s *welcomeStore) loadConfig() (welcomeConfigRow, bool, error) {
 	var row welcomeConfigRow
 	var enabledInt, msgEnabledInt, motdEnabledInt int
 	var regionJoinEnabledInt, regionLeaveEnabledInt int
-	var activeVersionsJSON string
 	err := s.db.QueryRow(`
-		SELECT enabled, scan_secs, active_version, active_versions_json, packages_json,
+		SELECT enabled, scan_secs, active_version,
 		       welcome_message_enabled, welcome_message, welcome_whisper_source_player,
 		       motd_enabled, motd_message, motd_source_player,
 		       region_join_enabled, region_leave_enabled, region_join_template, region_leave_template,
 		       region_chat_channel
 		FROM welcome_config WHERE server_id = ?`, s.serverID).
-		Scan(&enabledInt, &row.ScanSecs, &row.ActiveVersion, &activeVersionsJSON, &row.PackagesJSON,
+		Scan(&enabledInt, &row.ScanSecs, &row.ActiveVersion,
 			&msgEnabledInt, &row.WelcomeMessage, &row.WelcomeWhisperSourcePlayer,
 			&motdEnabledInt, &row.MotdMessage, &row.MotdSourcePlayer,
 			&regionJoinEnabledInt, &regionLeaveEnabledInt, &row.RegionJoinTemplate, &row.RegionLeaveTemplate,
@@ -447,12 +396,18 @@ func (s *welcomeStore) loadConfig() (welcomeConfigRow, bool, error) {
 	row.MotdEnabled = motdEnabledInt != 0
 	row.RegionJoinEnabled = regionJoinEnabledInt != 0
 	row.RegionLeaveEnabled = regionLeaveEnabledInt != 0
-	// Parse active_versions_json; fall back to promoting active_version for old rows.
-	if activeVersionsJSON != "" && activeVersionsJSON != "null" && activeVersionsJSON != "[]" {
-		if jsonErr := json.Unmarshal([]byte(activeVersionsJSON), &row.ActiveVersions); jsonErr != nil {
-			return welcomeConfigRow{}, false, fmt.Errorf("parse active_versions_json: %w", jsonErr)
-		}
+	// Packages and active versions now come from the typed welcome child tables.
+	packages, activeVersions, err := loadWelcomePackagesColumns(s.db, s.serverID)
+	if err != nil {
+		return welcomeConfigRow{}, false, err
 	}
+	packagesJSON, err := json.Marshal(packages)
+	if err != nil {
+		return welcomeConfigRow{}, false, fmt.Errorf("marshal welcome packages: %w", err)
+	}
+	row.PackagesJSON = string(packagesJSON)
+	row.ActiveVersions = activeVersions
+	// Compat: promote the scalar active_version for old rows with no typed list.
 	if len(row.ActiveVersions) == 0 && row.ActiveVersion != "" {
 		row.ActiveVersions = []string{row.ActiveVersion}
 	}

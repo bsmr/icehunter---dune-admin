@@ -2,10 +2,8 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 )
 
 // settingsStore persists the global (non-per-server) settings as a single-row
@@ -31,47 +29,26 @@ func initSettingsSchema(db *sql.DB) error {
 func newSettingsStore(db *sql.DB) *settingsStore { return &settingsStore{db: db} }
 
 // globalSettingsOnly returns a copy of cfg with all per-server fields cleared so
-// the settings blob holds only global config (auth, Discord, market-bot tuning,
-// feature flags, listen addr, scrip currency).
+// the app-config tables hold only app-level config (auth, Discord, market-bot
+// tuning, feature flags, listen addr, scrip currency). DefaultServerName is kept
+// as it is an app-level display field.
 func globalSettingsOnly(cfg appConfig) appConfig {
 	cfg.Servers = nil
 	cfg.DefaultServer = ""
-	cfg.DefaultServerName = ""
 	clearFlatConnectionConfig(&cfg) // drop flat connection + secrets (per-server)
 	return cfg
 }
 
-// saveSettings upserts the single global-settings row (id = 1).
+// saveSettings upserts the app-level settings into the app_config_* tables
+// (per-server/connection fields stripped via globalSettingsOnly).
 func (s *settingsStore) saveSettings(cfg appConfig) error {
-	now := time.Now().UTC().Format(time.RFC3339)
-	blob, err := json.Marshal(globalSettingsOnly(cfg))
-	if err != nil {
-		return fmt.Errorf("marshal settings: %w", err)
-	}
-	if _, err := s.db.Exec(
-		`INSERT INTO app_settings (id, config_json, updated_at) VALUES (1, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET config_json = excluded.config_json, updated_at = excluded.updated_at`,
-		string(blob), now); err != nil {
-		return fmt.Errorf("save settings: %w", err)
-	}
-	return nil
+	return saveAppConfigColumns(s.db, globalSettingsOnly(cfg))
 }
 
-// loadSettings reads the global-settings row. ok=false on first boot (no row).
+// loadSettings reads the app-level settings from the app_config_* tables.
+// ok=false on first boot (no settings persisted yet).
 func (s *settingsStore) loadSettings() (appConfig, bool, error) {
-	var blob string
-	err := s.db.QueryRow(`SELECT config_json FROM app_settings WHERE id = 1`).Scan(&blob)
-	if errors.Is(err, sql.ErrNoRows) {
-		return appConfig{}, false, nil
-	}
-	if err != nil {
-		return appConfig{}, false, fmt.Errorf("load settings: %w", err)
-	}
-	var cfg appConfig
-	if err := json.Unmarshal([]byte(blob), &cfg); err != nil {
-		return appConfig{}, false, fmt.Errorf("unmarshal settings: %w", err)
-	}
-	return cfg, true, nil
+	return loadAppConfigColumns(s.db)
 }
 
 // active server id (string scope form) persisted across restarts via meta.
