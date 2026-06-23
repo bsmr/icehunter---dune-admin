@@ -797,7 +797,7 @@ func readINIContent(path string, ctrl ControlPlane, exec Executor) string {
 		return ""
 	}
 	if ns, pod, inPodPath, ok := parseK8sINIPath(path); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		out, err := exec.Exec(fmt.Sprintf(
 			"%s exec -n %s %s -- cat %s 2>/dev/null",
 			kctl, ns, pod, shellQuote(inPodPath)))
@@ -985,7 +985,7 @@ func writeINIContent(path, body string, exec Executor) error {
 		return fmt.Errorf("not connected")
 	}
 	if ns, pod, inPodPath, ok := parseK8sINIPath(path); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		payload := base64.StdEncoding.EncodeToString([]byte(body))
 		cmd := fmt.Sprintf(
 			"echo %s | base64 -d | %s exec -i -n %s %s -- sh -lc 'cat > %s' 2>/dev/null",

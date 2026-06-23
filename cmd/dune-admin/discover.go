@@ -146,7 +146,7 @@ func persistDiscoveredConfig(cfg appConfig, g gameServerArgs, gameIP, adminIP, d
 // through the executor (one call). Empty on error. Callers resolve every
 // service from this single listing instead of one kubectl call per service.
 func fetchClusterPodIPs(exec Executor) string {
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 	out, err := exec.Exec(fmt.Sprintf( // #nosec G204,G702 -- constant kubectl command, no user input
 		`%s get pods -A -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.podIP}{"\n"}{end}' 2>/dev/null`,
 		kctl))

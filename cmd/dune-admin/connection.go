@@ -111,7 +111,7 @@ func connectAll() error {
 	// namespace before the control plane and DB connect. A discovery failure is
 	// fatal — without a namespace there is nothing to drive the control plane.
 	if ctrl == "kubectl" {
-		ns, pod, podIP, err := discoverDBPod(exec)
+		ns, pod, podIP, err := discoverDBPod(exec, false, "")
 		if err != nil {
 			exec.Close()
 			globalExecutor = nil
@@ -345,6 +345,8 @@ func legacyServerFromFlat(ac appConfig) ServerConfig {
 		Control:          resolveControl(),
 		ControlNamespace: controlNS,
 		DataPlane:        ac.DataPlane,
+		KubectlNoSudo:    ac.KubectlNoSudo,
+		KubectlBin:       ac.KubectlBin,
 		// Broker
 		BrokerGameAddr:   brokerGameAddr,
 		BrokerAdminAddr:  brokerAdminAddr,
@@ -444,6 +446,8 @@ func serverCfgToAppConfig(sc ServerConfig) appConfig {
 	ac.DirectorURL = sc.DirectorURL
 	ac.MarketBotEnabled = sc.MarketBotEnabled
 	ac.WebInterfaceHostOverride = sc.WebInterfaceHostOverride
+	ac.KubectlNoSudo = sc.KubectlNoSudo
+	ac.KubectlBin = sc.KubectlBin
 	ac.Timezone = sc.Timezone
 	return ac
 }
@@ -550,7 +554,7 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 	sc.Executor = exec
 
 	if ctrl == "kubectl" {
-		ns, pod, podIP, discErr := discoverDBPod(exec)
+		ns, pod, podIP, discErr := discoverDBPod(exec, cfg.KubectlNoSudo, cfg.KubectlBin)
 		if discErr != nil {
 			exec.Close()
 			sc.Executor = nil
@@ -569,8 +573,8 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 	var pool *pgxpool.Pool
 	if ctrl == "kubectl" {
 		if cfg.DataPlane == "portforward" {
-			kctl := kubectlCLI(exec)
-			target := "svc/" + dbServiceFromPod(sc.Pod)
+			kctl := kubectlCLI(exec, cfg.KubectlNoSudo, cfg.KubectlBin)
+			target := "pod/" + sc.Pod
 			pf, pfErr := startPortForward(exec, kctl, sc.PodNS, target, resolveDBPort(cfg.DBPort))
 			if pfErr != nil {
 				exec.Close()

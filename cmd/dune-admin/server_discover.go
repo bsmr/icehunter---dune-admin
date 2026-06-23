@@ -38,7 +38,7 @@ func assembleServerDiscovery(exec Executor, control string) map[string]any {
 	}
 
 	// kubectl: resolve cluster-internal endpoints to pod IPs and the namespace.
-	if ns, _, _, derr := discoverDBPod(exec); derr == nil {
+	if ns, _, _, derr := discoverDBPod(exec, false, ""); derr == nil {
 		out["control_namespace"] = ns
 	}
 	pods := fetchClusterPodIPs(exec)

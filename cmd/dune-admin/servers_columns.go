@@ -63,6 +63,9 @@ var serverColumnAlters = []string{
 	"ALTER TABLE servers ADD COLUMN market_bot_enabled INTEGER",
 	"ALTER TABLE servers ADD COLUMN web_interface_host_override TEXT NOT NULL DEFAULT ''",
 	"ALTER TABLE servers ADD COLUMN timezone TEXT NOT NULL DEFAULT ''",
+	"ALTER TABLE servers ADD COLUMN data_plane TEXT NOT NULL DEFAULT ''",
+	"ALTER TABLE servers ADD COLUMN kubectl_no_sudo INTEGER NOT NULL DEFAULT 0",
+	"ALTER TABLE servers ADD COLUMN kubectl_bin TEXT NOT NULL DEFAULT ''",
 }
 
 // initServersColumnsSchema adds the typed ServerConfig columns to the servers
@@ -86,7 +89,8 @@ const serverColumnNames = `ssh_host, ssh_user, ssh_key, ssh_mode, ssh_extra_opts
 	broker_exec_prefix, backup_dir, server_ini_dir, default_ini_dir,
 	amp_instance, amp_container, amp_user, amp_log_path, amp_use_container, amp_container_runtime,
 	amp_data_root, amp_api_user, amp_api_pass, amp_api_port, amp_pg_bin, amp_pg_lib, amp_backup_dir,
-	director_url, market_bot_enabled, web_interface_host_override, timezone`
+	director_url, market_bot_enabled, web_interface_host_override, timezone,
+	data_plane, kubectl_no_sudo, kubectl_bin`
 
 // writeServerColumns updates the typed columns for an existing server row.
 // insertServer creates the row first, so this is always an UPDATE by id.
@@ -101,7 +105,8 @@ func writeServerColumns(db dbExecer, id int, cfg ServerConfig) error {
 		amp_instance=?, amp_container=?, amp_user=?, amp_log_path=?, amp_use_container=?,
 		amp_container_runtime=?, amp_data_root=?, amp_api_user=?, amp_api_pass=?, amp_api_port=?,
 		amp_pg_bin=?, amp_pg_lib=?, amp_backup_dir=?, director_url=?, market_bot_enabled=?,
-		web_interface_host_override=?, timezone=?
+		web_interface_host_override=?, timezone=?,
+		data_plane=?, kubectl_no_sudo=?, kubectl_bin=?
 		WHERE id=?`,
 		cfg.SSHHost, cfg.SSHUser, cfg.SSHKey, cfg.SSHMode, cfg.SSHExtraOpts, b2i(cfg.AutoDiscover),
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPass, cfg.DBName, cfg.DBSchema, cfg.Control,
@@ -113,6 +118,7 @@ func writeServerColumns(db dbExecer, id int, cfg ServerConfig) error {
 		cfg.AmpContainerRuntime, cfg.AmpDataRoot, cfg.AmpAPIUser, cfg.AmpAPIPass, cfg.AmpAPIPort,
 		cfg.AmpPgBin, cfg.AmpPgLib, cfg.AmpBackupDir, cfg.DirectorURL, boolPtrToNullInt(cfg.MarketBotEnabled),
 		cfg.WebInterfaceHostOverride, cfg.Timezone,
+		cfg.DataPlane, b2i(cfg.KubectlNoSudo), cfg.KubectlBin,
 		id)
 	if err != nil {
 		return fmt.Errorf("write server columns %d: %w", id, err)
@@ -124,7 +130,7 @@ func writeServerColumns(db dbExecer, id int, cfg ServerConfig) error {
 // authoritative numeric id. Returns sql.ErrNoRows if the row is absent.
 func readServerColumns(db dbRowQueryer, id int) (ServerConfig, error) {
 	var cfg ServerConfig
-	var autoDiscover, brokerTLS int
+	var autoDiscover, brokerTLS, kubectlNoSudo int
 	var ampUseContainer, marketBotEnabled sql.NullInt64
 	err := db.QueryRow(`SELECT `+serverColumnNames+` FROM servers WHERE id=?`, id).Scan(
 		&cfg.SSHHost, &cfg.SSHUser, &cfg.SSHKey, &cfg.SSHMode, &cfg.SSHExtraOpts, &autoDiscover,
@@ -136,13 +142,15 @@ func readServerColumns(db dbRowQueryer, id int) (ServerConfig, error) {
 		&cfg.AmpInstance, &cfg.AmpContainer, &cfg.AmpUser, &cfg.AmpLogPath, &ampUseContainer,
 		&cfg.AmpContainerRuntime, &cfg.AmpDataRoot, &cfg.AmpAPIUser, &cfg.AmpAPIPass, &cfg.AmpAPIPort,
 		&cfg.AmpPgBin, &cfg.AmpPgLib, &cfg.AmpBackupDir, &cfg.DirectorURL, &marketBotEnabled,
-		&cfg.WebInterfaceHostOverride, &cfg.Timezone)
+		&cfg.WebInterfaceHostOverride, &cfg.Timezone,
+		&cfg.DataPlane, &kubectlNoSudo, &cfg.KubectlBin)
 	if err != nil {
 		return ServerConfig{}, err
 	}
 	cfg.ID = id
 	cfg.AutoDiscover = autoDiscover != 0
 	cfg.BrokerTLS = brokerTLS != 0
+	cfg.KubectlNoSudo = kubectlNoSudo != 0
 	cfg.AmpUseContainer = nullIntToBoolPtr(ampUseContainer)
 	cfg.MarketBotEnabled = nullIntToBoolPtr(marketBotEnabled)
 	return cfg, nil

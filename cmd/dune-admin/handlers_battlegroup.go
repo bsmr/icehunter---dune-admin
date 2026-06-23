@@ -194,7 +194,7 @@ func discoverK8sBackupPod(ns string, exec Executor) (string, error) {
 	if exec == nil {
 		return "", fmt.Errorf("not connected")
 	}
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 	out, err := exec.Exec(fmt.Sprintf(
 		"%s get pods -n %s --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | grep -- '-sg-' | head -1",
 		kctl, shellQuote(ns),
@@ -217,7 +217,7 @@ func ensureBackupDir(dir string, exec Executor) error {
 		return fmt.Errorf("not connected")
 	}
 	if ns, pod, inPodDir, ok := parseK8sBackupDir(dir); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		out, err := exec.Exec(fmt.Sprintf(
 			"%s exec -n %s %s -- mkdir -p %s 2>&1",
 			kctl, shellQuote(ns), shellQuote(pod), shellQuote(inPodDir),
@@ -242,7 +242,7 @@ func listBackupDir(dir string, exec Executor) (string, string, error) {
 		return "", "", fmt.Errorf("not connected")
 	}
 	if ns, pod, inPodDir, ok := parseK8sBackupDir(dir); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		listCmd := fmt.Sprintf(`ls -lt %s/ 2>/dev/null | awk '/\.backup$/{print $NF"|"$5"|"$6" "$7" "$8}'`, inPodDir)
 		out, err := exec.Exec(fmt.Sprintf(
 			"%s exec -n %s %s -- sh -lc %s 2>&1",
@@ -291,7 +291,7 @@ func backupFileExists(dir, name string, exec Executor) bool {
 		return false
 	}
 	if ns, pod, inPodDir, ok := parseK8sBackupDir(dir); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		remotePath := strings.TrimRight(inPodDir, "/") + "/" + name
 		out, _ := exec.Exec(fmt.Sprintf(
 			"%s exec -n %s %s -- sh -lc %s 2>/dev/null",
@@ -311,7 +311,7 @@ func backupFileExists(dir, name string, exec Executor) bool {
 
 func backupReadCmd(dir, name string, exec Executor) string {
 	if ns, pod, inPodDir, ok := parseK8sBackupDir(dir); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		remotePath := strings.TrimRight(inPodDir, "/") + "/" + name
 		return fmt.Sprintf("%s exec -n %s %s -- cat %s", kctl, shellQuote(ns), shellQuote(pod), shellQuote(remotePath))
 	}
@@ -335,7 +335,7 @@ func writeBackupFile(dir, name string, src io.Reader, exec Executor) error {
 			_, _ = exec.Exec(fmt.Sprintf("rm -f %s 2>/dev/null || sudo rm -f %s 2>/dev/null || true",
 				shellQuote(tmp), shellQuote(tmp)))
 		}()
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		remotePath := strings.TrimRight(inPodDir, "/") + "/" + name
 		out, err := exec.Exec(fmt.Sprintf(
 			"%s cp %s %s/%s:%s 2>&1",
@@ -641,7 +641,7 @@ func restoreViaControl(ctx context.Context, ctrl ControlPlane, exec Executor, fi
 	}
 	path := strings.TrimRight(dir, "/") + "/" + filename
 	if ns, pod, inPodDir, ok := parseK8sBackupDir(dir); ok {
-		kctl := kubectlCLI(exec)
+		kctl := kubectlCLI(exec, activeServerCfg().KubectlNoSudo, activeServerCfg().KubectlBin)
 		tmp := fmt.Sprintf("/tmp/dune-admin-restore-%d.backup", time.Now().UnixNano())
 		remotePath := strings.TrimRight(inPodDir, "/") + "/" + filename
 		copyOut, copyErr := exec.Exec(fmt.Sprintf(

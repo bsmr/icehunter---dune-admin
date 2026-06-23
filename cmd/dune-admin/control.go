@@ -98,6 +98,8 @@ func newControlPlane(name string, cfg appConfig) ControlPlane {
 			namespace:    cfg.ControlNamespace,
 			sshHost:      cfg.SSHHost,
 			hostOverride: cfg.WebInterfaceHostOverride,
+			noSudo:       cfg.KubectlNoSudo,
+			kubectlBin:   cfg.KubectlBin,
 		}
 	case "docker":
 		return &dockerControl{

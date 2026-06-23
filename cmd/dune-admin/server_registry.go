@@ -106,6 +106,13 @@ type ServerConfig struct {
 	// node ports. Leave blank to use the SSH host automatically.
 	WebInterfaceHostOverride string `yaml:"web_interface_host_override" json:"web_interface_host_override"`
 
+	// KubectlNoSudo skips the "sudo" prefix on all kubectl invocations when true.
+	// Use when the SSH target user has kubectl in their PATH without sudo (e.g. RKE2 jumphost).
+	KubectlNoSudo bool `yaml:"kubectl_no_sudo" json:"kubectl_no_sudo"`
+	// KubectlBin overrides the full kubectl command string (e.g. "KUBECONFIG=/home/dune/kubeconfig kubectl").
+	// Overrides KubectlNoSudo when non-empty.
+	KubectlBin string `yaml:"kubectl_bin" json:"kubectl_bin"`
+
 	// Timezone is an IANA tz name (e.g. "America/New_York") applied to all
 	// time-aware features for this server (activity charts, scheduled restarts,
 	// backups). Empty means host-local time. Schedule-level timezone fields fall

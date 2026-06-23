@@ -206,6 +206,11 @@ type appConfig struct {
 	// URLs (issue #234). Useful when the SSH jump host differs from the host
 	// that serves the director/file-browser node ports.
 	WebInterfaceHostOverride string `yaml:"web_interface_host_override" json:"web_interface_host_override"`
+	// KubectlNoSudo skips the "sudo" prefix on all kubectl invocations when true.
+	// Use when the SSH target user has kubectl in their PATH without sudo (e.g. RKE2 jumphost).
+	KubectlNoSudo bool `yaml:"kubectl_no_sudo" json:"kubectl_no_sudo"`
+	// KubectlBin overrides the full kubectl command string (e.g. "KUBECONFIG=/home/dune/kubeconfig kubectl").
+	KubectlBin string `yaml:"kubectl_bin" json:"kubectl_bin"`
 
 	// Timezone is the server-level IANA tz name (e.g. "America/New_York") used
 	// for activity charts, scheduled restarts, and backups. Empty = host-local.
@@ -1073,6 +1078,8 @@ func run(ctx context.Context) error {
 	globalWelcomeCancel = startWelcomePackageScanner(loadedConfig)
 	defer stopWelcomeScanner()
 
+	listenAddr = resolveListenAddr()
+
 	startBackgroundServices(ctx)
 	defer globalWebProxy.shutdown()
 
@@ -1082,7 +1089,7 @@ func run(ctx context.Context) error {
 	applyBattlepassEngine(loadedConfig)
 	defer stopBattlepassEngine()
 
-	return startServer(ctx, resolveListenAddr())
+	return startServer(ctx, listenAddr)
 }
 
 // startBackgroundServices launches the process-lifetime schedulers and loads the

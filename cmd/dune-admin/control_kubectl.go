@@ -16,12 +16,17 @@ type kubectlControl struct {
 	namespace    string // e.g. "funcom-seabass-mybg"
 	sshHost      string // host (or host:port) of the SSH target — used to rewrite CRD-reported public IPs
 	hostOverride string // optional operator override; takes precedence over sshHost when non-empty
+	noSudo       bool   // when true, use plain "kubectl" instead of "sudo kubectl" (e.g. jumphost user has kubectl in PATH)
+	kubectlBin   string // when non-empty, overrides the full kubectl command (e.g. "KUBECONFIG=/home/dune/kubeconfig kubectl")
 }
 
 func (c *kubectlControl) Name() string { return "kubectl" }
 
-func kubectlCLI(exec Executor) string {
-	if exec != nil && exec.Type() == "local" {
+func kubectlCLI(exec Executor, noSudo bool, kubectlBin string) string {
+	if kubectlBin != "" {
+		return kubectlBin
+	}
+	if (exec != nil && exec.Type() == "local") || noSudo {
 		return "kubectl"
 	}
 	return "sudo kubectl"
@@ -32,8 +37,11 @@ func (c *kubectlControl) bgName() string {
 }
 
 func (c *kubectlControl) GetStatus(ctx context.Context, exec Executor) (*BattlegroupStatus, error) {
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available")
+	}
 	bgName := c.bgName()
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 
 	// startTimestamp drives uptime/age; gamePort + per-server fields come from the
 	// battlegroup status (NOT serverstats, which lacks them — verified on a live
@@ -93,7 +101,7 @@ func (c *kubectlControl) GetStatus(ctx context.Context, exec Executor) (*Battleg
 // from the battlegroup status (status.utilities), so operators don't have to
 // configure them by hand on kubectl. Implements webInterfaceDiscoverer.
 func (c *kubectlControl) discoverWebInterfaces(_ context.Context, exec Executor) []webInterface {
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 	out, _ := exec.Exec(fmt.Sprintf(
 		`%s get battlegroups -n %s -o jsonpath="{.items[0].status.utilities.director.address}|{.items[0].status.utilities.fileBrowser.address}" 2>/dev/null`,
 		kctl, c.namespace))
@@ -209,7 +217,7 @@ func ageSecondsFromStartTime(ts string, now time.Time) int {
 func (c *kubectlControl) ExecCommand(_ context.Context, exec Executor, cmd string) (string, error) {
 	bgName := c.bgName()
 	ns := c.namespace
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 
 	switch cmd {
 	case "start":
@@ -235,7 +243,7 @@ func (c *kubectlControl) ExecCommand(_ context.Context, exec Executor, cmd strin
 }
 
 func (c *kubectlControl) ListProcesses(_ context.Context, exec Executor) ([]ProcessInfo, string, error) {
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 	out, err := exec.Exec(fmt.Sprintf("%s get pods -n %s --no-headers 2>&1", kctl, c.namespace))
 	if err != nil {
 		return nil, "", fmt.Errorf("kubectl: %w", err)
@@ -250,7 +258,7 @@ func (c *kubectlControl) ListProcesses(_ context.Context, exec Executor) ([]Proc
 }
 
 func (c *kubectlControl) ListLogSources(_ context.Context, exec Executor) ([]LogSource, error) {
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 	out, err := exec.Exec(fmt.Sprintf(
 		"%s get pods -n %s --no-headers -o custom-columns=NAME:.metadata.name 2>&1", kctl, c.namespace))
 	if err != nil {
@@ -276,13 +284,13 @@ func (c *kubectlControl) ListLogSources(_ context.Context, exec Executor) ([]Log
 }
 
 func (c *kubectlControl) StreamLog(_ context.Context, exec Executor, ns, name string) (<-chan string, func(), error) {
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 	cmd := fmt.Sprintf("%s logs -f -n %s %s 2>&1", kctl, ns, name)
 	return exec.Stream(cmd)
 }
 
 func (c *kubectlControl) CaptureJWT(_ context.Context, exec Executor) (string, string, error) {
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 	pod, err := exec.Exec(fmt.Sprintf(
 		"%s get pods -n %s --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | grep bgd | head -1",
 		kctl, c.namespace))
@@ -304,7 +312,7 @@ func (c *kubectlControl) EvalOnGameBroker(_ context.Context, exec Executor, expr
 	if c.namespace == "" {
 		return "", errNotSupported("kubectl", "EvalOnGameBroker (namespace not configured)")
 	}
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 	pod, err := exec.Exec(fmt.Sprintf(
 		"%s get pods -n %s --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | grep mq-game | head -1",
 		kctl, c.namespace))
@@ -324,8 +332,8 @@ func (c *kubectlControl) EvalOnGameBroker(_ context.Context, exec Executor, expr
 // ── kubectl-specific discovery helpers (used by setup wizard) ─────────────────
 
 // discoverDBPod uses kubectl to find the DB pod, returning namespace, name, and pod IP.
-func discoverDBPod(exec Executor) (ns, pod, podIP string, err error) {
-	kctl := kubectlCLI(exec)
+func discoverDBPod(exec Executor, noSudo bool, kubectlBin string) (ns, pod, podIP string, err error) {
+	kctl := kubectlCLI(exec, noSudo, kubectlBin)
 	out, err := exec.Exec(
 		fmt.Sprintf(`%s get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{.status.podIP}{"\n"}{end}' 2>/dev/null | grep db-dbdepl-sts | head -1`, kctl))
 	if err != nil {
@@ -415,7 +423,7 @@ func (c *kubectlControl) ReadDefaultINI(_ context.Context, exec Executor, filena
 	if c.namespace == "" {
 		return ""
 	}
-	kctl := kubectlCLI(exec)
+	kctl := kubectlCLI(exec, c.noSudo, c.kubectlBin)
 
 	podOut, err := exec.Exec(fmt.Sprintf(
 		"%s get pods -n %s --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null",

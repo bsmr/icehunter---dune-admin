@@ -201,7 +201,7 @@ func setupKubectlSSHConnection(
 func setupKubectlDiscoverDBPod(exec *sshExecutor, ok, fail func(string), cfg *appConfig) {
 	// Discover DB pod
 	fmt.Println("Discovering database pod...")
-	ns, pod, podIP, err := discoverDBPod(exec)
+	ns, pod, podIP, err := discoverDBPod(exec, false, "")
 	if err != nil {
 		fail("Pod discovery failed: " + err.Error())
 		fmt.Println()

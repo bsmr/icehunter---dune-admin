@@ -651,20 +651,27 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string
 // @Router /api/v1/reconnect [post]
 func handleReconnect(w http.ResponseWriter, r *http.Request) {
-	if globalDB != nil {
-		globalDB.Close()
-		globalDB = nil
-	}
-	if globalExecutor != nil {
-		globalExecutor.Close()
-		globalExecutor = nil
-	}
-	globalSSH = nil
-	globalControl = nil
+	if len(loadedConfig.Servers) > 0 {
+		if err := connectMultiServer(loadedConfig); err != nil {
+			jsonErr(w, err, 500)
+			return
+		}
+	} else {
+		if globalDB != nil {
+			globalDB.Close()
+			globalDB = nil
+		}
+		if globalExecutor != nil {
+			globalExecutor.Close()
+			globalExecutor = nil
+		}
+		globalSSH = nil
+		globalControl = nil
 
-	if err := connectAll(); err != nil {
-		jsonErr(w, err, 500)
-		return
+		if err := connectAll(); err != nil {
+			jsonErr(w, err, 500)
+			return
+		}
 	}
 	if a := globalRegistry.Active(); a != nil {
 		invalidateServerHealth(a.ID) // connections rebuilt → drop stale health
