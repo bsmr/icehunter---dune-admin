@@ -138,6 +138,11 @@ type appConfig struct {
 	// kubectl-specific
 	ControlNamespace string `yaml:"control_namespace" json:"control_namespace"`
 
+	// DataPlane selects the DB/broker TCP data-plane for kubectl control mode.
+	// "" or "pod-ip" (default): dial the pod IP directly via exec.Dial.
+	// "portforward": route through kubectl port-forward on the kubectl host.
+	DataPlane string `yaml:"data_plane" json:"data_plane"`
+
 	// docker-specific — container names
 	DockerGameserver  string `yaml:"docker_gameserver"  json:"docker_gameserver"`
 	DockerBrokerGame  string `yaml:"docker_broker_game"  json:"docker_broker_game"`

@@ -208,6 +208,21 @@ func TestSSHConnected(t *testing.T) {
 	}
 }
 
+func TestDataPlaneRoundTrip(t *testing.T) {
+	sc := ServerConfig{
+		SSHMode:   "command",
+		DataPlane: "portforward",
+	}
+	ac := serverCfgToAppConfig(sc)
+	if ac.DataPlane != "portforward" {
+		t.Errorf("serverCfgToAppConfig: DataPlane = %q, want %q", ac.DataPlane, "portforward")
+	}
+	sc2 := legacyServerFromFlat(ac)
+	if sc2.DataPlane != "portforward" {
+		t.Errorf("legacyServerFromFlat: DataPlane = %q, want %q", sc2.DataPlane, "portforward")
+	}
+}
+
 // Integration: requires a reachable ssh target. Run with:
 //
 //	SSH_CMD_TARGET=vm-dune-01 go test -run TestSSHCommandExecutorIntegration ./...

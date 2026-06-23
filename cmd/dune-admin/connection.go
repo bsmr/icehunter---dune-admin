@@ -344,6 +344,7 @@ func legacyServerFromFlat(ac appConfig) ServerConfig {
 		// Control
 		Control:          resolveControl(),
 		ControlNamespace: controlNS,
+		DataPlane:        ac.DataPlane,
 		// Broker
 		BrokerGameAddr:   brokerGameAddr,
 		BrokerAdminAddr:  brokerAdminAddr,
@@ -408,6 +409,7 @@ func serverCfgToAppConfig(sc ServerConfig) appConfig {
 	ac.DBSchema = sc.DBSchema
 	ac.Control = sc.Control
 	ac.ControlNamespace = sc.ControlNamespace
+	ac.DataPlane = sc.DataPlane
 	ac.DockerGameserver = sc.DockerGameserver
 	ac.DockerBrokerGame = sc.DockerBrokerGame
 	ac.DockerBrokerAdmin = sc.DockerBrokerAdmin

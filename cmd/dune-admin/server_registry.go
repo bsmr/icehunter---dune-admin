@@ -47,6 +47,10 @@ type ServerConfig struct {
 	Control          string `yaml:"control"           json:"control"`
 	ControlNamespace string `yaml:"control_namespace" json:"control_namespace"`
 
+	// DataPlane selects the DB TCP data-plane for the kubectl control path.
+	// "" / "pod-ip": pod-IP dial (default). "portforward": kubectl port-forward.
+	DataPlane string `yaml:"data_plane" json:"data_plane"`
+
 	// docker-specific container names.
 	DockerGameserver  string `yaml:"docker_gameserver"   json:"docker_gameserver"`
 	DockerBrokerGame  string `yaml:"docker_broker_game"  json:"docker_broker_game"`
