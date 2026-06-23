@@ -568,7 +568,27 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 
 	var pool *pgxpool.Pool
 	if ctrl == "kubectl" {
-		pool, err = connectDBViaSSH(context.Background(), exec, sc.PodIP, cfg)
+		if cfg.DataPlane == "portforward" {
+			kctl := kubectlCLI(exec)
+			target := "svc/" + dbServiceFromPod(sc.Pod)
+			pf, pfErr := startPortForward(exec, kctl, sc.PodNS, target, resolveDBPort(cfg.DBPort))
+			if pfErr != nil {
+				exec.Close()
+				sc.Executor = nil
+				return sc, fmt.Errorf("DB port-forward: %w", pfErr)
+			}
+			sc.dbForward = pf
+			pfCfg := cfg
+			pfCfg.DBHost = "127.0.0.1"
+			pfCfg.DBPort = pf.localPort
+			pool, err = connectDBDirectWithExecutor(context.Background(), exec, pfCfg)
+			if err != nil {
+				pf.stop()
+				sc.dbForward = nil
+			}
+		} else {
+			pool, err = connectDBViaSSH(context.Background(), exec, sc.PodIP, cfg)
+		}
 	} else {
 		pool, err = connectDBDirectWithExecutor(context.Background(), exec, cfg)
 	}
