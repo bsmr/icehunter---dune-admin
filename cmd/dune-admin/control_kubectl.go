@@ -106,7 +106,28 @@ func (c *kubectlControl) discoverWebInterfaces(_ context.Context, exec Executor)
 		`%s get battlegroups -n %s -o jsonpath="{.items[0].status.utilities.director.address}|{.items[0].status.utilities.fileBrowser.address}" 2>/dev/null`,
 		kctl, c.namespace))
 	directorAddr, fileBrowserAddr, _ := strings.Cut(strings.TrimSpace(out), "|")
-	return webInterfacesFromAddresses(c.vmHostIP(), directorAddr, fileBrowserAddr)
+	// dialHost is the node IP used for SSH-tunneled dial: the internal (cluster-
+	// network) IP of a worker node, which is reachable from the executor host
+	// even when the external IP is firewalled. Falls back to the CRD-reported
+	// host when the lookup fails (e.g. local executor without kubectl access).
+	dialHost := nodeInternalIP(exec, kctl)
+	return webInterfacesFromAddresses(c.vmHostIP(), dialHost, directorAddr, fileBrowserAddr)
+}
+
+// nodeInternalIP returns the InternalIP of the first worker node that has one.
+// Used to replace external/public node IPs in web-interface dial targets so the
+// SSH-tunneled connections reach node ports via the cluster-internal network.
+func nodeInternalIP(exec Executor, kctl string) string {
+	out, _ := exec.Exec(fmt.Sprintf(
+		`%s get nodes -o jsonpath='{range .items[*]}{range .status.addresses[*]}{.type}{" "}{.address}{"\n"}{end}{end}' 2>/dev/null`,
+		kctl))
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		parts := strings.Fields(line)
+		if len(parts) == 2 && parts[0] == "InternalIP" {
+			return parts[1]
+		}
+	}
+	return ""
 }
 
 // vmHostIP returns the host the operator uses to reach the game VM, for
@@ -133,15 +154,33 @@ func (c *kubectlControl) vmHostIP() string {
 // raw host:port addresses reported by the battlegroup CRD. Empty addresses are
 // skipped. The game's director and file browser serve over http on node ports
 // (matching director_url's http convention).
-func webInterfacesFromAddresses(vmHost, directorAddr, fileBrowserAddr string) []webInterface {
+//
+// dialHost, when non-empty, overrides the host in the dial Target (used for
+// SSH-tunneled connections where the internal node IP must be used instead of
+// the external/firewalled address). The browser-facing URL still uses vmHost.
+func webInterfacesFromAddresses(vmHost, dialHost, directorAddr, fileBrowserAddr string) []webInterface {
 	var out []webInterface
 	if url := webInterfaceURL(vmHost, directorAddr); url != "" {
-		out = append(out, webInterface{Label: directorInterfaceLabel, URL: url, Target: strings.TrimSpace(directorAddr)})
+		out = append(out, webInterface{Label: directorInterfaceLabel, URL: url, Target: rewriteHost(directorAddr, dialHost)})
 	}
 	if url := webInterfaceURL(vmHost, fileBrowserAddr); url != "" {
-		out = append(out, webInterface{Label: "File Browser", URL: url, Target: strings.TrimSpace(fileBrowserAddr)})
+		out = append(out, webInterface{Label: "File Browser", URL: url, Target: rewriteHost(fileBrowserAddr, dialHost)})
 	}
 	return out
+}
+
+// rewriteHost replaces the host in a host:port address with newHost. Returns
+// the original address unchanged when newHost is empty or the address is malformed.
+func rewriteHost(addr, newHost string) string {
+	addr = strings.TrimSpace(addr)
+	if newHost == "" || addr == "" {
+		return addr
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return net.JoinHostPort(newHost, port)
 }
 
 // webInterfaceURL turns a CRD-reported host:port into an operator-reachable URL.

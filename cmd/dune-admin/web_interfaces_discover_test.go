@@ -11,6 +11,7 @@ func TestWebInterfacesFromAddresses(t *testing.T) {
 	tests := []struct {
 		name     string
 		vmHost   string
+		dialHost string
 		director string
 		files    string
 		want     []webInterface
@@ -23,6 +24,17 @@ func TestWebInterfacesFromAddresses(t *testing.T) {
 			want: []webInterface{
 				{Label: "Battlegroup Director", URL: "http://192.168.0.67:31592/", Target: "207.216.171.194:31592"},
 				{Label: "File Browser", URL: "http://192.168.0.67:18888/", Target: "207.216.171.194:18888"},
+			},
+		},
+		{
+			name:     "dialHost rewrites Target to internal IP, URL still uses vmHost",
+			vmHost:   "vm-jh-01",
+			dialHost: "192.168.33.8",
+			director: "185.115.173.152:30754",
+			files:    "185.115.173.152:18888",
+			want: []webInterface{
+				{Label: "Battlegroup Director", URL: "http://vm-jh-01:30754/", Target: "192.168.33.8:30754"},
+				{Label: "File Browser", URL: "http://vm-jh-01:18888/", Target: "192.168.33.8:18888"},
 			},
 		},
 		{
@@ -49,7 +61,7 @@ func TestWebInterfacesFromAddresses(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := webInterfacesFromAddresses(tt.vmHost, tt.director, tt.files)
+			got := webInterfacesFromAddresses(tt.vmHost, tt.dialHost, tt.director, tt.files)
 			if len(got) != len(tt.want) {
 				t.Fatalf("got %d interfaces, want %d: %+v", len(got), len(tt.want), got)
 			}
