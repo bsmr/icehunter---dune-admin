@@ -585,6 +585,8 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 			if err != nil {
 				pf.stop()
 				sc.dbForward = nil
+				exec.Close()
+				sc.Executor = nil
 			}
 		} else {
 			pool, err = connectDBViaSSH(context.Background(), exec, sc.PodIP, cfg)
