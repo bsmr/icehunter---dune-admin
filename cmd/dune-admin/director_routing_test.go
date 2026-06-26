@@ -29,8 +29,9 @@ func (e *dialRecordingExecutor) Dial(network, addr string) (net.Conn, error) {
 	e.dialAddr = addr
 	return net.Dial(network, e.target)
 }
-func (e *dialRecordingExecutor) Close()       {}
-func (e *dialRecordingExecutor) Type() string { return "ssh" }
+func (e *dialRecordingExecutor) DialCommand(string) (net.Conn, error) { return nil, nil }
+func (e *dialRecordingExecutor) Close()                               {}
+func (e *dialRecordingExecutor) Type() string                         { return "ssh" }
 
 // TestHTTPTransportVia_UsesProvidedDialer verifies the transport built by
 // httpTransportVia establishes every connection through the supplied dialer,

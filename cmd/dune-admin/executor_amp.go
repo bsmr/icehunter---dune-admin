@@ -73,3 +73,8 @@ func (e *ampExecutor) WriteFile(path string, data io.Reader) error {
 func (e *ampExecutor) Dial(network, addr string) (net.Conn, error) {
 	return e.Executor.Dial(network, addr)
 }
+
+// DialCommand delegates to the inner executor.
+func (e *ampExecutor) DialCommand(cmd string) (net.Conn, error) {
+	return e.Executor.DialCommand(cmd)
+}

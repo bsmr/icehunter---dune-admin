@@ -124,19 +124,16 @@ type ServerConfig struct {
 // per-server analogue of the process-wide singletons (globalDB, globalControl,
 // globalExecutor). During the shim period those globals alias reg.Active().
 type ServerContext struct {
-	ID       string
-	Name     string
-	Cfg      ServerConfig
-	DB       *pgxpool.Pool // nil if DB connect failed; control plane still usable
-	Control  ControlPlane
-	Executor Executor
-	PodIP    string
-	PodNS    string
-	Pod      string
-	SSH      *ssh.Client
-	// dbForward is non-nil when data_plane: portforward is active. Its stop
-	// func must be called when the server context is torn down.
-	dbForward  *portForward
+	ID         string
+	Name       string
+	Cfg        ServerConfig
+	DB         *pgxpool.Pool // nil if DB connect failed; control plane still usable
+	Control    ControlPlane
+	Executor   Executor
+	PodIP      string
+	PodNS      string
+	Pod        string
+	SSH        *ssh.Client
 	StoreScope int // == servers.id; scopes every SQLite query for this server
 
 	// Per-server embedded market bot. Bot is nil unless the server's toggle is

@@ -29,13 +29,12 @@ func (f *fnExecutor) Exec(cmd string) (string, error) { return f.fn(cmd) }
 func (f *fnExecutor) Stream(string) (<-chan string, func(), error) {
 	return nil, func() {}, nil
 }
-func (f *fnExecutor) PipeToWriter(string, io.Writer) error { return nil }
-func (f *fnExecutor) WriteFile(string, io.Reader) error    { return nil }
-func (f *fnExecutor) Dial(string, string) (net.Conn, error) {
-	return nil, nil
-}
-func (f *fnExecutor) Close()       {}
-func (f *fnExecutor) Type() string { return "local" }
+func (f *fnExecutor) PipeToWriter(string, io.Writer) error  { return nil }
+func (f *fnExecutor) WriteFile(string, io.Reader) error     { return nil }
+func (f *fnExecutor) Dial(string, string) (net.Conn, error) { return nil, nil }
+func (f *fnExecutor) DialCommand(string) (net.Conn, error)  { return nil, nil }
+func (f *fnExecutor) Close()                                {}
+func (f *fnExecutor) Type() string                          { return "local" }
 
 func (f *fakeAMPExecutor) Exec(cmd string) (string, error) {
 	f.cmd = cmd
@@ -53,8 +52,9 @@ func (f *fakeAMPExecutor) WriteFile(string, io.Reader) error    { return nil }
 func (f *fakeAMPExecutor) Dial(network, addr string) (net.Conn, error) {
 	return net.Dial(network, addr)
 }
-func (f *fakeAMPExecutor) Close()       {}
-func (f *fakeAMPExecutor) Type() string { return "local" }
+func (f *fakeAMPExecutor) DialCommand(string) (net.Conn, error) { return nil, nil }
+func (f *fakeAMPExecutor) Close()                               {}
+func (f *fakeAMPExecutor) Type() string                         { return "local" }
 
 func TestParseAMPGameProcess(t *testing.T) {
 	t.Parallel()

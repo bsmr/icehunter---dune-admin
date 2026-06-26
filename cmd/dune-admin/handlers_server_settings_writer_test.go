@@ -52,6 +52,7 @@ func (e *fullRecExec) Stream(string) (<-chan string, func(), error) { return nil
 func (e *fullRecExec) PipeToWriter(string, io.Writer) error         { return nil }
 func (e *fullRecExec) WriteFile(string, io.Reader) error            { e.writes++; return nil }
 func (e *fullRecExec) Dial(network, addr string) (net.Conn, error)  { return nil, nil }
+func (e *fullRecExec) DialCommand(string) (net.Conn, error)         { return nil, nil }
 func (e *fullRecExec) Close()                                       {}
 func (e *fullRecExec) Type() string                                 { return "local" }
 

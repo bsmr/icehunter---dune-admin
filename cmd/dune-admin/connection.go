@@ -563,6 +563,14 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 		sc.PodNS = ns
 		sc.Pod = pod
 		sc.PodIP = podIP
+		// Mirror connectAll: propagate the discovered namespace into cfg so the
+		// kubectlControl is created with the correct namespace (needed for
+		// `kubectl get battlegroups -n <ns>`). sc.Cfg is a copy taken earlier, so
+		// update it separately.
+		if cfg.ControlNamespace == "" {
+			cfg.ControlNamespace = ns
+			sc.Cfg.ControlNamespace = ns
+		}
 		if s, ok := exec.(*sshExecutor); ok {
 			sc.SSH = s.client
 		}
@@ -572,29 +580,7 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 
 	var pool *pgxpool.Pool
 	if ctrl == "kubectl" {
-		if cfg.DataPlane == "portforward" {
-			kctl := kubectlCLI(exec, cfg.KubectlNoSudo, cfg.KubectlBin)
-			target := "pod/" + sc.Pod
-			pf, pfErr := startPortForward(exec, kctl, sc.PodNS, target, resolveDBPort(cfg.DBPort))
-			if pfErr != nil {
-				exec.Close()
-				sc.Executor = nil
-				return sc, fmt.Errorf("DB port-forward: %w", pfErr)
-			}
-			sc.dbForward = pf
-			pfCfg := cfg
-			pfCfg.DBHost = "127.0.0.1"
-			pfCfg.DBPort = pf.localPort
-			pool, err = connectDBDirectWithExecutor(context.Background(), exec, pfCfg)
-			if err != nil {
-				pf.stop()
-				sc.dbForward = nil
-				exec.Close()
-				sc.Executor = nil
-			}
-		} else {
-			pool, err = connectDBViaSSH(context.Background(), exec, sc.PodIP, cfg)
-		}
+		pool, err = connectDBForKubectl(exec, sc, cfg)
 	} else {
 		pool, err = connectDBDirectWithExecutor(context.Background(), exec, cfg)
 	}
@@ -603,6 +589,51 @@ func connectServer(cfg ServerConfig) (*ServerContext, error) {
 	}
 	sc.DB = pool
 	return sc, nil
+}
+
+// connectDBForKubectl selects the DB connection strategy for the kubectl
+// control path based on cfg.DataPlane.
+func connectDBForKubectl(exec Executor, sc *ServerContext, cfg ServerConfig) (*pgxpool.Pool, error) {
+	if cfg.DataPlane == "portforward" {
+		return connectDBViaPortForward(exec, sc, cfg)
+	}
+	return connectDBViaSSH(context.Background(), exec, sc.PodIP, cfg)
+}
+
+// connectDBViaPortForward connects the DB pool by tunnelling through a
+// kubectl exec nc session running inside the DB pod. Each pgxpool connection
+// spawns its own nc process; the connection originates from inside the pod so
+// pg_hba.conf (which restricts to pod-network IPs) accepts it.
+// kubectl port-forward is NOT used here — it appears from the kubelet/node IP
+// and is rejected by pg_hba.conf.
+func connectDBViaPortForward(exec Executor, sc *ServerContext, cfg ServerConfig) (*pgxpool.Pool, error) {
+	kctl := kubectlCLI(exec, cfg.KubectlNoSudo, cfg.KubectlBin)
+	dbPort := resolveDBPort(cfg.DBPort)
+	ncCmd := kubectlExecDialCmd(kctl, sc.PodNS, sc.Pod, dbPort)
+
+	connStr := fmt.Sprintf(
+		"host=127.0.0.1 port=%d user=%s password=%s dbname=%s sslmode=disable",
+		dbPort, cfg.DBUser, cfg.DBPass, cfg.DBName)
+	poolCfg, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		return nil, err
+	}
+	poolCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, fmt.Sprintf(`SET search_path TO %s, public`, pgx.Identifier{cfg.DBSchema}.Sanitize()))
+		return err
+	}
+	poolCfg.ConnConfig.DialFunc = func(_ context.Context, _, _ string) (net.Conn, error) {
+		return exec.DialCommand(ncCmd)
+	}
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := pool.Ping(context.Background()); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	return pool, nil
 }
 
 // connectMultiServer connects all servers listed in cfg.Servers, registers them

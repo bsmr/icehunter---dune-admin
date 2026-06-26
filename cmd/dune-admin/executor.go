@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -49,6 +51,11 @@ type Executor interface {
 	PipeToWriter(cmd string, w io.Writer) error
 	WriteFile(path string, data io.Reader) error
 	Dial(network, addr string) (net.Conn, error)
+	// DialCommand runs cmd on the executor host and returns a net.Conn backed by
+	// the command's stdin/stdout. Used to tunnel DB connections through
+	// `kubectl exec <pod> -- nc <host> <port>` so the connection originates
+	// from inside the pod (satisfying pg_hba.conf pod-IP restrictions).
+	DialCommand(cmd string) (net.Conn, error)
 	Close()
 	// Type returns "local" or "ssh" for status reporting.
 	Type() string
@@ -160,6 +167,53 @@ func (e *sshExecutor) Dial(network, addr string) (net.Conn, error) {
 	return e.client.Dial(network, addr)
 }
 
+// sshSessionConn wraps an ssh.Session as a net.Conn for DialCommand.
+type sshSessionConn struct {
+	sess   *ssh.Session
+	stdin  io.WriteCloser
+	stdout io.Reader
+	once   sync.Once
+}
+
+func (c *sshSessionConn) Read(b []byte) (int, error)       { return c.stdout.Read(b) }
+func (c *sshSessionConn) Write(b []byte) (int, error)      { return c.stdin.Write(b) }
+func (c *sshSessionConn) LocalAddr() net.Addr              { return sshAddr{"tcp", "ssh-session"} }
+func (c *sshSessionConn) RemoteAddr() net.Addr             { return sshAddr{"tcp", "ssh-session"} }
+func (c *sshSessionConn) SetDeadline(time.Time) error      { return nil }
+func (c *sshSessionConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *sshSessionConn) SetWriteDeadline(time.Time) error { return nil }
+func (c *sshSessionConn) Close() error {
+	c.once.Do(func() {
+		_ = c.stdin.Close()
+		_ = c.sess.Close()
+	})
+	return nil
+}
+
+func (e *sshExecutor) DialCommand(cmd string) (net.Conn, error) {
+	sess, err := e.client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		_ = sess.Close()
+		return nil, err
+	}
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		_ = sess.Close()
+		return nil, err
+	}
+	if err := sess.Start(cmd); err != nil {
+		_ = stdin.Close()
+		_ = sess.Close()
+		return nil, err
+	}
+	return &sshSessionConn{sess: sess, stdin: stdin, stdout: stdout}, nil
+}
+
 // ── Local executor ────────────────────────────────────────────────────────────
 
 type localExecutor struct{}
@@ -223,6 +277,30 @@ func (e *localExecutor) WriteFile(path string, data io.Reader) error {
 
 func (e *localExecutor) Dial(network, addr string) (net.Conn, error) {
 	return net.Dial(network, addr)
+}
+
+func (e *localExecutor) DialCommand(cmd string) (net.Conn, error) {
+	c := exec.Command("sh", "-c", cmd) // #nosec G204,G702 -- cmd is admin-supplied kubectl exec command
+	stdin, err := c.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := c.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return nil, err
+	}
+	c.Stderr = os.Stderr
+	if err := c.Start(); err != nil {
+		return nil, err
+	}
+	return &stdioConn{
+		cmd:    c,
+		stdin:  stdin,
+		stdout: stdout,
+		local:  sshAddr{network: "tcp", addr: "local-stdio"},
+		remote: sshAddr{network: "tcp", addr: cmd},
+	}, nil
 }
 
 // sshConnected reports whether the active executor tunnels over SSH (either

@@ -239,6 +239,33 @@ func (e *sshCommandExecutor) Dial(network, addr string) (net.Conn, error) {
 	}, nil
 }
 
+// DialCommand runs cmd on the SSH host and returns a net.Conn backed by the
+// command's stdin/stdout. Used to tunnel DB connections through kubectl exec
+// running inside a pod — each pgxpool connection spawns its own nc subprocess.
+func (e *sshCommandExecutor) DialCommand(cmd string) (net.Conn, error) {
+	c := exec.Command("ssh", sshExecArgs(e.base, e.target, cmd)...) // #nosec G204,G702 -- args from admin config, not user input
+	stdin, err := c.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdout, err := c.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return nil, err
+	}
+	c.Stderr = os.Stderr
+	if err := c.Start(); err != nil {
+		return nil, err
+	}
+	return &stdioConn{
+		cmd:    c,
+		stdin:  stdin,
+		stdout: stdout,
+		local:  sshAddr{network: "tcp", addr: "ssh-stdio"},
+		remote: sshAddr{network: "tcp", addr: cmd},
+	}, nil
+}
+
 // Close tears down the ControlMaster (Unix). No-op when control is nil
 // (Windows or no master), since each invocation owned its own connection.
 func (e *sshCommandExecutor) Close() {
