@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, Input, ListBox, Spinner, Switch, TextArea, Select } from '@heroui/react'
+import { Button, Description, Input, ListBox, Spinner, Switch, TextArea, Select } from '@heroui/react'
 import { useTranslation } from 'react-i18next'
 import { usePermissions } from '../../../hooks/usePermissions'
 import { ConfirmDialog, Icon, NumberInput, PageHeader, Panel, SectionLabel } from '../../../dune-ui'
@@ -61,8 +61,10 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
       {/* Compact one-liner: enabled toggle + scan interval */}
       <div className="flex items-center gap-6 shrink-0">
         <Switch isSelected={enabled} onChange={setEnabled} size="sm">
-          <Switch.Control><Switch.Thumb /></Switch.Control>
-          <Switch.Content>{t('welcome.enabledLabel')}</Switch.Content>
+          <Switch.Content>
+            <Switch.Control><Switch.Thumb /></Switch.Control>
+            {t('welcome.enabledLabel')}
+          </Switch.Content>
         </Switch>
         <span className="text-xs text-muted">{t('welcome.enabledHint')}</span>
         <NumberInput
@@ -107,12 +109,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
           <SectionLabel>{t('welcome.message.title')}</SectionLabel>
 
           <Switch isSelected={welcomeMessageEnabled} onChange={setWelcomeMessageEnabled} size="sm">
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('welcome.message.enabledLabel')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('welcome.message.enabledLabel')}
+            </Switch.Content>
+            <Description className="mb-3">{t('welcome.message.enabledHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1 mb-3">
-            {t('welcome.message.enabledHint')}
-          </p>
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
@@ -146,12 +148,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
           <SectionLabel>{t('welcome.motd.title')}</SectionLabel>
 
           <Switch isSelected={motdEnabled} onChange={setMotdEnabled} size="sm">
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('welcome.motd.enabledLabel')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('welcome.motd.enabledLabel')}
+            </Switch.Content>
+            <Description className="mb-3">{t('welcome.motd.enabledHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1 mb-3">
-            {t('welcome.motd.enabledHint')}
-          </p>
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
@@ -224,12 +226,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
           {/* Join half */}
           <Switch isSelected={regionJoinEnabled} onChange={setRegionJoinEnabled} size="sm">
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('welcome.region.joinEnabledLabel')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('welcome.region.joinEnabledLabel')}
+            </Switch.Content>
+            <Description className="mb-2">{t('welcome.region.joinEnabledHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1 mb-2">
-            {t('welcome.region.joinEnabledHint')}
-          </p>
           <div className="flex flex-col gap-1 mb-4">
             <span className="text-xs text-muted">{t('welcome.region.joinTemplateLabel')}</span>
             <TextArea
@@ -245,12 +247,12 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 
           {/* Leave half */}
           <Switch isSelected={regionLeaveEnabled} onChange={setRegionLeaveEnabled} size="sm">
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('welcome.region.leaveEnabledLabel')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('welcome.region.leaveEnabledLabel')}
+            </Switch.Content>
+            <Description className="mb-2">{t('welcome.region.leaveEnabledHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1 mb-2">
-            {t('welcome.region.leaveEnabledHint')}
-          </p>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted">{t('welcome.region.leaveTemplateLabel')}</span>
             <TextArea

@@ -77,8 +77,10 @@ export const BotServerConfig = React.forwardRef<BotServerConfigHandle>((_, ref) 
         <SectionLabel>{t('market.bot.serverConfig.embeddedBot')}</SectionLabel>
         <div className="mt-2 flex items-center gap-2">
           <Switch isSelected={cfg.market_bot_enabled} onChange={setBool('market_bot_enabled')} size="sm">
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('market.bot.serverConfig.enableEmbedded')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('market.bot.serverConfig.enableEmbedded')}
+            </Switch.Content>
           </Switch>
           <span className="text-xs text-muted">{t('market.bot.serverConfig.restartRequired')}</span>
         </div>

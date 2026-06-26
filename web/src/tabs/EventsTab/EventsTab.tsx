@@ -208,8 +208,10 @@ export const EventsTab: React.FC = () => {
               isDisabled={cfgSaving}
               size="sm"
             >
-              <Switch.Control><Switch.Thumb /></Switch.Control>
-              <Switch.Content>{t('events.config.enabled')}</Switch.Content>
+              <Switch.Content>
+                <Switch.Control><Switch.Thumb /></Switch.Control>
+                {t('events.config.enabled')}
+              </Switch.Content>
             </Switch>
           )}
           <Button size="sm" variant="ghost" onPress={loadEvents} isDisabled={loading}>
@@ -275,7 +277,9 @@ export const EventsTab: React.FC = () => {
                         onChange={() => handleToggleEnabled(ev)}
                         aria-label={t('events.toggleEnabled')}
                       >
-                        <Switch.Control><Switch.Thumb /></Switch.Control>
+                        <Switch.Content>
+                          <Switch.Control><Switch.Thumb /></Switch.Control>
+                        </Switch.Content>
                       </Switch>
                     )
                   : (

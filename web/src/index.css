@@ -363,7 +363,6 @@ body,
 .checkbox,
 .switch {
   position: relative;
-  align-items: center;
 }
 
 /* The VisuallyHidden span wrapping the hidden <input> inside Checkbox/Switch.

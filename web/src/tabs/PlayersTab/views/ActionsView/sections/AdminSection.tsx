@@ -601,8 +601,10 @@ export const AdminSection: React.FC<AdminSectionProps> = ({
                   {t('players.actions.admin.pickOnMap')}
                 </Button>
                 <Switch isSelected={spawnVehiclePersistent} onChange={setSpawnVehiclePersistent} size="sm">
-                  <Switch.Control><Switch.Thumb /></Switch.Control>
-                  <Switch.Content><span className="text-xs">{t('players.actions.admin.persistent')}</span></Switch.Content>
+                  <Switch.Content className="text-xs">
+                    <Switch.Control><Switch.Thumb /></Switch.Control>
+                    {t('players.actions.admin.persistent')}
+                  </Switch.Content>
                 </Switch>
                 <Button
                   size="sm"

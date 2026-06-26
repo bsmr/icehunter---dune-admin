@@ -524,7 +524,9 @@ export const BattlepassTab: React.FC = () => {
                               onChange={() => saveTier(tier, tier.intel, !tier.enabled)}
                               aria-label={t('battlepass.toggleEnabled')}
                             >
-                              <Switch.Control><Switch.Thumb /></Switch.Control>
+                              <Switch.Content>
+                                <Switch.Control><Switch.Thumb /></Switch.Control>
+                              </Switch.Content>
                             </Switch>
                           )
                         : (

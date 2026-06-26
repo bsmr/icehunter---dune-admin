@@ -1,3 +1,5 @@
 # Functions excluded from the gocognit complexity gate.
 # Each entry has a GitHub issue tracking the refactor work.
 # Format: FuncName  file:line  score  issue-url
+cmdFetchJourneyNodes    cmd/dune-admin/db.go  16  https://github.com/Icehunter/dune-admin/issues/267
+cmdFetchPlayerPgStats   cmd/dune-admin/db.go  16  https://github.com/Icehunter/dune-admin/issues/270

@@ -375,8 +375,10 @@ export const TierEditorModal: React.FC<TierEditorModalProps> = ({ isOpen, onClos
                     className="w-56 shrink-0"
                   />
                   <Switch size="sm" isSelected={enabled} onChange={() => setEnabled((v) => !v)} className="shrink-0 pb-2">
-                    <Switch.Control><Switch.Thumb /></Switch.Control>
-                    <Switch.Content className="text-xs">{t('battlepass.columns.enabled')}</Switch.Content>
+                    <Switch.Content className="text-xs">
+                      <Switch.Control><Switch.Thumb /></Switch.Control>
+                      {t('battlepass.columns.enabled')}
+                    </Switch.Content>
                   </Switch>
                 </div>
               </FormSection>

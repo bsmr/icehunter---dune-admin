@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Switch } from '@heroui/react'
+import { Switch, Description } from '@heroui/react'
 import { useTranslation } from 'react-i18next'
 import type { CapabilityGridProps } from './types'
 
@@ -20,20 +20,19 @@ export const CapabilityGrid: React.FC<CapabilityGridProps> = ({ capabilities, se
             isSelected={isInherited || selected.includes(cap.id)}
             isDisabled={isInherited}
             onChange={(on: boolean) => onToggle(cap.id, on)}
-            className="items-start"
           >
-            <Switch.Control className="mt-0.5"><Switch.Thumb /></Switch.Control>
-            <Switch.Content className="flex flex-col min-w-0">
-              <span className="font-mono text-xs text-foreground">
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              <span className="font-mono text-xs">
                 {cap.id}
                 {isInherited && <span className="ml-1 text-[10px] text-muted">{t('permissions.inherited')}</span>}
               </span>
-              <span className="text-xs text-muted">
-                {/* Localized description; the backend's English text is the
-                    fallback for capabilities added after this translation set. */}
-                {t(`permissions.caps.${cap.id.replace(':', '_')}` as never, { defaultValue: cap.description })}
-              </span>
             </Switch.Content>
+            <Description>
+              {/* Localized description; the backend's English text is the
+                  fallback for capabilities added after this translation set. */}
+              {t(`permissions.caps.${cap.id.replace(':', '_')}` as never, { defaultValue: cap.description })}
+            </Description>
           </Switch>
         )
       })}

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, Spinner, Switch } from '@heroui/react'
+import { Button, Description, Spinner, Switch } from '@heroui/react'
 import { useTranslation } from 'react-i18next'
 import { toast } from '@heroui/react'
 import { api } from '../../../api/client'
@@ -85,36 +85,36 @@ export const ConfigView: React.FC = () => {
             onChange={(v) => set('battlepass_enabled')(v)}
             size="sm"
           >
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('battlepass.config.enabled')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('battlepass.config.enabled')}
+            </Switch.Content>
+            <Description className="mb-3">{t('battlepass.config.enabledHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1 mb-3">
-            {t('battlepass.config.enabledHint')}
-          </p>
 
           <Switch
             isSelected={awardPastBool}
             onChange={(v) => set('battlepass_award_past')(v)}
             size="sm"
           >
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('battlepass.config.awardPast')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('battlepass.config.awardPast')}
+            </Switch.Content>
+            <Description className="mb-3">{t('battlepass.config.awardPastHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1 mb-3">
-            {t('battlepass.config.awardPastHint')}
-          </p>
 
           <Switch
             isSelected={autoGrantBool}
             onChange={(v) => set('battlepass_auto_grant')(v)}
             size="sm"
           >
-            <Switch.Control><Switch.Thumb /></Switch.Control>
-            <Switch.Content>{t('battlepass.config.autoGrant')}</Switch.Content>
+            <Switch.Content>
+              <Switch.Control><Switch.Thumb /></Switch.Control>
+              {t('battlepass.config.autoGrant')}
+            </Switch.Content>
+            <Description>{t('battlepass.config.autoGrantHint')}</Description>
           </Switch>
-          <p className="text-xs text-muted mt-1">
-            {t('battlepass.config.autoGrantHint')}
-          </p>
         </Panel>
 
         <Panel>

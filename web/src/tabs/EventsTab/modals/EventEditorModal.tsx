@@ -712,8 +712,10 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                           isSelected={milestone.awardPast}
                           onChange={() => setMilestone((m) => ({ ...m, awardPast: !m.awardPast }))}
                         >
-                          <Switch.Control><Switch.Thumb /></Switch.Control>
-                          <Switch.Content className="text-xs">{t('events.editor.awardPast')}</Switch.Content>
+                          <Switch.Content className="text-xs">
+                            <Switch.Control><Switch.Thumb /></Switch.Control>
+                            {t('events.editor.awardPast')}
+                          </Switch.Content>
                         </Switch>
                         <span className="text-xs text-muted">{t('events.editor.awardPastHint')}</span>
                       </div>
