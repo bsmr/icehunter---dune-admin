@@ -12,7 +12,7 @@ import { RawSectionPanel } from './components/RawSectionPanel'
 import { CategorySection } from './components/CategorySection'
 import {
   ADVANCED_CATEGORIES, COMMON_KEYS, SOURCE_FILE,
-  SOURCE_PRIORITY, USER_SOURCES,
+  SOURCE_PRIORITY, userSourcesFor,
 } from './constants'
 import {
   groupByCategory, matchesSetting, matchesRawSection,
@@ -63,9 +63,10 @@ export const ServerSettingsTab: React.FC = () => {
 
   // All filtering/grouping runs on the debounced query + inputs so a
   // keystroke that hasn't yet committed doesn't re-run it.
+  const userSources = userSourcesFor(control)
   const visibleItems = showAll
     ? items
-    : items.filter((item) => item.layers.some((l) => USER_SOURCES.has(l.source)))
+    : items.filter((item) => item.layers.some((l) => userSources.has(l.source)))
 
   const commonItems = items
     .filter((item) => COMMON_KEYS.has(`${item.section}|${item.key}`))
@@ -92,7 +93,7 @@ export const ServerSettingsTab: React.FC = () => {
   const visibleRawSections = (showAll
     ? [...rawBySection.values()]
     : [...rawBySection.values()].filter((secs) =>
-        secs.some((s) => USER_SOURCES.has(s.source)),
+        secs.some((s) => userSources.has(s.source)),
       )
   ).filter((secs) => matchesRawSection(secs, q))
 
@@ -276,6 +277,7 @@ export const ServerSettingsTab: React.FC = () => {
                   pending={pending.get(pendingKey(item))}
                   onChange={(v) => handleChange(item, v)}
                   onDelete={() => handleDelete(item)}
+                  userSources={userSources}
                 />
               ))}
             </div>
@@ -293,6 +295,7 @@ export const ServerSettingsTab: React.FC = () => {
           onChange={handleChange}
           onDelete={handleDelete}
           isAmpManaged={ampManaged}
+          userSources={userSources}
         />
 
         <CategorySection
@@ -306,6 +309,7 @@ export const ServerSettingsTab: React.FC = () => {
           onChange={handleChange}
           onDelete={handleDelete}
           isAmpManaged={ampManaged}
+          userSources={userSources}
         />
 
         {visibleRawSections.length > 0 && (

@@ -21,9 +21,9 @@ import {
 } from '../../atoms/app'
 import {
   DEFAULT_TAB,
-  TAB_CAPABILITIES,
   TAB_IDS,
   currentTabFromPath,
+  resolveCanSeeTab,
 } from './nav'
 import { useNavGroups } from './useNavGroups'
 import { AppNavbar } from './AppNavbar'
@@ -69,24 +69,12 @@ export const AppCore: React.FC<AppCoreProps> = ({ isSignedIn }): React.ReactElem
     }
   }, [activeID, refreshStatus])
 
-  // Whether a tab is visible for the current session. All-true when backend
-  // auth is disabled. The Dashboard is always visible (it's the home and the
-  // empty-state/onboarding surface); when no servers are configured every other
-  // tab is hidden so a fresh install shows only the Dashboard.
-  //
-  // Control-plane support is NOT a visibility gate: a tab the session is allowed
-  // to see (e.g. Director) stays enabled regardless of the active control plane.
-  // When the plane doesn't support it, the tab itself renders a friendly
-  // "not supported" notice rather than vanishing from the nav.
-  const canSeeTab = (key: TabId): boolean => {
-    if (key === 'dashboard') return true
-    // Diagnostics is about dune-admin itself, not a specific game server, so it
-    // stays visible even when no server is configured.
-    if (servers.length === 0 && key !== 'diagnostics') return false
-    const cap = TAB_CAPABILITIES[key]
-    if (cap === 'owner') return authEnabled && (isOwner || can('auth:manage'))
-    return can(cap)
-  }
+  // Whether a tab is visible for the current session — see resolveCanSeeTab
+  // (nav.ts) for the full rule set (dashboard/diagnostics always-visible
+  // cases, the control-plane gate e.g. Director requiring AMP, and the
+  // capability matrix).
+  const canSeeTab = (key: TabId): boolean =>
+    resolveCanSeeTab({ key, serverCount: servers.length, authEnabled, isOwner, can, control: status?.control })
 
   // Re-establish backend connections (DB + control plane) without a service
   // restart — used by the navbar Reconnect button when the DB shows disconnected

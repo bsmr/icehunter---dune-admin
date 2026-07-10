@@ -199,15 +199,32 @@ func rmqServiceBroadcastGeneric(durationSec int, texts []localizedText) error {
 	})
 }
 
-func rmqServiceBroadcastShutdown(shutdownType string, timestamp int64, frequency, duration int, shouldCancel bool) error {
-	payload := map[string]any{
+// shutdownPayload builds the ServerShutdown broadcast payload. Pure (takes
+// `now` explicitly) so the countdown math is unit-testable without a clock.
+//
+// The in-game client derives its countdown window as
+// ShutdownTimestamp - DateTimestamp, so DateTimestamp must be the broadcast
+// time (now), not the shutdown time — setting both to the same value (the
+// prior bug, #262) always yields a zero-length window and no countdown ever
+// renders. ShutdownDuration is the lead time in seconds (timestamp - now,
+// clamped to zero so a past/cancel timestamp never goes negative).
+// BroadcastDuration is the on-screen pulse length, mirrored from the working
+// Generic broadcast (rmqServiceBroadcastGeneric) which already sets it.
+func shutdownPayload(now, timestamp int64, shutdownType string, frequency, broadcastDuration int, shouldCancel bool) map[string]any {
+	lead := max(timestamp-now, 0)
+	return map[string]any{
 		"ShutdownType":       shutdownType,
 		"ShouldCancel":       shouldCancel,
 		"ShutdownTimestamp":  timestamp,
 		"BroadcastFrequency": frequency,
-		"ShutdownDuration":   duration,
-		"DateTimestamp":      timestamp,
+		"ShutdownDuration":   int(lead),
+		"BroadcastDuration":  broadcastDuration,
+		"DateTimestamp":      now,
 	}
+}
+
+func rmqServiceBroadcastShutdown(shutdownType string, timestamp int64, frequency, broadcastDuration int, shouldCancel bool) error {
+	payload := shutdownPayload(time.Now().Unix(), timestamp, shutdownType, frequency, broadcastDuration, shouldCancel)
 	return publishServerCommand(map[string]any{
 		"ServerCommand":    "ServiceBroadcast",
 		"BroadcastType":    "ServerShutdown",

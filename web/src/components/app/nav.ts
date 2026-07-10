@@ -1,4 +1,5 @@
 import type { TabId } from '../../types'
+import { canSeeTabByControlPlane } from '../../tabNav'
 
 export const TAB_IDS = [
   'dashboard',
@@ -81,6 +82,38 @@ export const TAB_CAPABILITIES: Record<TabId, string> = {
 }
 
 export const BETA_TABS = new Set<TabId>(['events', 'battlepass'])
+
+export interface CanSeeTabParams {
+  key: TabId
+  serverCount: number
+  authEnabled: boolean
+  isOwner: boolean
+  can: (capability: string) => boolean
+  control: string | undefined
+}
+
+// resolveCanSeeTab is the pure decision behind AppCore's canSeeTab — extracted
+// so the visibility rules (including the control-plane gate, #262.1) are
+// unit-testable without rendering the app shell.
+//
+// - Dashboard is always visible (home + onboarding surface).
+// - Diagnostics stays visible with no servers configured (it's about
+//   dune-admin itself), but every other tab is hidden in that state.
+// - Control-plane support (e.g. Director requiring AMP) IS a visibility gate:
+//   a tab whose capability the session holds still hides on a control plane
+//   that can't back it, matching the "not supported" notice the tab itself
+//   would otherwise show.
+// - Otherwise falls back to the capability matrix; 'owner' is a pseudo-cap
+//   gated on authEnabled + (isOwner || auth:manage).
+export const resolveCanSeeTab = (params: CanSeeTabParams): boolean => {
+  const { key, serverCount, authEnabled, isOwner, can, control } = params
+  if (key === 'dashboard') return true
+  if (serverCount === 0 && key !== 'diagnostics') return false
+  if (!canSeeTabByControlPlane(key, control)) return false
+  const cap = TAB_CAPABILITIES[key]
+  if (cap === 'owner') return authEnabled && (isOwner || can('auth:manage'))
+  return can(cap)
+}
 
 export interface NavGroup {
   title: string

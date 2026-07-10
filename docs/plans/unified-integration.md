@@ -149,7 +149,7 @@ broker_jwt_secret: ""              # HMAC key for CaptureJWT (env: BROKER_JWT_SE
 
 ### `deploy/Dockerfile` (update)
 
-- Builder: `FROM golang:1.26.3`, compiles `./cmd/dune-admin` with `CGO_ENABLED=0`
+- Builder: `FROM golang:1.26.5`, compiles `./cmd/dune-admin` with `CGO_ENABLED=0`
 - `COPY item-data.json ./` — needed by embedded bot
 - Runtime: `FROM debian:bookworm-slim`
 

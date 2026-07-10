@@ -2,13 +2,13 @@ import * as React from 'react'
 import { Button, ListBox, Select, Tooltip } from '@heroui/react'
 import { useTranslation } from 'react-i18next'
 import { FieldInput, NumberInput, Icon } from '../../../dune-ui'
-import { SOURCE_FILE, LAYER_STYLE, USER_SOURCES } from '../constants'
+import { SOURCE_FILE, LAYER_STYLE } from '../constants'
 import { sourceLabel, trimFloat } from '../utils'
 import type { SettingRowProps } from './interfaces'
 import type { ServerSetting } from '../../../api/client'
 
 export const SettingRow: React.FC<SettingRowProps> = ({
-  item, pending, onChange, onDelete, ampManaged,
+  item, pending, onChange, onDelete, ampManaged, userSources,
 }) => {
   const { t } = useTranslation()
   const rawDisplay = pending !== undefined ? pending : item.current
@@ -103,7 +103,7 @@ export const SettingRow: React.FC<SettingRowProps> = ({
                 )}
         </div>
         <div className="w-8 flex justify-center shrink-0">
-          {USER_SOURCES.has(item.source) && (
+          {userSources.has(item.source) && (
             <Tooltip>
               <Tooltip.Trigger>
                 <Button

@@ -157,9 +157,17 @@ func deriveServerState(status *BattlegroupStatus, err error) serverState {
 // partitionLabel returns the display label for a single ServerRow. The
 // director-supplied Sietch name is preferred; falls back to the pretty map
 // name; falls back to "Unknown".
+//
+// The director label's trailing "_N" is stripped first (#254): it's a
+// provisioning-time partition suffix, meaningless on single-instance maps
+// (e.g. "Arrakeen_1" -> "Arrakeen") and redundant on genuine multi-instance
+// ones, where aggregateMapCounts' own " #N" disambiguation (driven by
+// partition index) takes over once stripping causes same-base labels to
+// collide — a real custom Sietch name with no trailing _N passes through
+// unchanged.
 func partitionLabel(s ServerRow) string {
 	if s.Sietch != "" {
-		return s.Sietch
+		return stripTrailingNumericSuffix(s.Sietch)
 	}
 	if label := prettyRegionName(s.Map); label != "" {
 		return label

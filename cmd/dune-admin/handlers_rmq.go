@@ -210,6 +210,15 @@ func handleRMQBroadcastShutdown(w http.ResponseWriter, r *http.Request) {
 	if req.ShutdownType == "" {
 		req.ShutdownType = "Restart"
 	}
+	// The frontend only sends shutdown_type/delay_minutes/cancel today, so
+	// Frequency/Duration (the on-screen pulse length, i.e. BroadcastDuration)
+	// arrive as zero — default them the same way the Generic handler does.
+	if req.Frequency <= 0 {
+		req.Frequency = 60
+	}
+	if req.Duration <= 0 {
+		req.Duration = 30
+	}
 	// A cancel supersedes any pending action; clear it before re-broadcasting.
 	if req.Cancel {
 		cancelBroadcastShutdownExec()

@@ -139,6 +139,42 @@ func TestSplitAmpKV(t *testing.T) {
 	}
 }
 
+// ── #278: probeGameRoot must honor the configured container runtime ─────────
+//
+// probeGameRoot used to hardcode `podman exec`, so setup-wizard game-root
+// detection silently failed (probe errors are swallowed, falling back to
+// defaults) on docker installs. probeGameRootArgs is the pure command-builder
+// extracted so this is unit-testable without shelling out.
+
+func TestProbeGameRootArgs_UsesConfiguredRuntime(t *testing.T) {
+	got := probeGameRootArgs("amp", "docker", "AMP_DuneTest01")
+	want := []string{"sudo", "-n", "-i", "-u", "amp", "docker", "exec", "AMP_DuneTest01", "ls", "-1F", "/AMP/"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("probeGameRootArgs = %#v, want %#v", got, want)
+	}
+}
+
+func TestProbeGameRootArgs_DefaultsToPodmanWhenRuntimeEmpty(t *testing.T) {
+	got := probeGameRootArgs("amp", "", "AMP_X")
+	want := []string{"sudo", "-n", "-i", "-u", "amp", "podman", "exec", "AMP_X", "ls", "-1F", "/AMP/"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("probeGameRootArgs = %#v, want %#v", got, want)
+	}
+}
+
+func TestContainerRuntimeOrDefault(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"", "podman"},
+		{"podman", "podman"},
+		{"docker", "docker"},
+	}
+	for _, c := range cases {
+		if got := containerRuntimeOrDefault(c.in); got != c.want {
+			t.Errorf("containerRuntimeOrDefault(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestSummarizeInstance(t *testing.T) {
 	got := summarizeInstance(ampInstance{
 		Name: "DuneTest01", Module: "GenericModule", Running: true, InContainer: true,

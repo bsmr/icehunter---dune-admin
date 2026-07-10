@@ -145,17 +145,27 @@ func splitAmpKV(line string) (string, string, bool) {
 // Returns "" + nil when the probe cannot answer authoritatively (container
 // not running, sudo prompts, non-standard layout) — caller falls back to
 // the historical default.
-func probeGameRoot(ctx context.Context, ampUser, container string) (string, error) {
-	if ampUser == "" || container == "" {
-		return "", errors.New("ampUser and container are required")
-	}
+// probeGameRootArgs builds the sudo/exec argv used to list /AMP/ inside the
+// instance container. Pure and unit-testable — the container runtime binary
+// (podman/docker) is threaded through instead of hardcoded, so docker
+// installs probe correctly too (#278). runtime defaults to "podman" when
+// empty, matching runtimeCLI()'s existing default for podman-only installs.
+func probeGameRootArgs(ampUser, runtime, container string) []string {
 	// Use `sudo -n -i -u <ampUser>` so sudo enters amp's login shell and
 	// chdirs to amp's home before exec'ing — otherwise the calling user's
 	// cwd typically isn't readable by amp ("cannot chdir to /home/X: …").
 	// -F appends "/" to directory entries; -1 forces one-per-line output.
+	return []string{"sudo", "-n", "-i", "-u", ampUser, containerRuntimeOrDefault(runtime), "exec", container, "ls", "-1F", "/AMP/"}
+}
+
+func probeGameRoot(ctx context.Context, ampUser, runtime, container string) (string, error) {
+	if ampUser == "" || container == "" {
+		return "", errors.New("ampUser and container are required")
+	}
+	args := probeGameRootArgs(ampUser, runtime, container)
 	// Use Output() (not CombinedOutput) so any residual stderr doesn't
 	// poison the directory list.
-	cmd := exec.CommandContext(ctx, "sudo", "-n", "-i", "-u", ampUser, "podman", "exec", container, "ls", "-1F", "/AMP/")
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...) // #nosec G204 -- fixed argv from probeGameRootArgs, no shell interpolation
 	out, err := cmd.Output()
 	if err != nil {
 		// Probe failure (sudo prompt, container down, exec denied, etc.) —

@@ -269,8 +269,10 @@ func broadcastRestartWarning(_ scheduledRestartConfig, at, now time.Time) {
 		mins = 1
 	}
 	componentLog("scheduled_restart").Info().Int("warn_minutes", mins).Msg("broadcasting restart warning")
-	// shutdownType, timestamp (when), frequency (re-announce sec), duration (countdown sec), cancel.
-	if err := rmqServiceBroadcastShutdown("Restart", at.Unix(), 60, mins*60, false); err != nil {
+	// shutdownType, timestamp (when — the lead time is derived from this),
+	// frequency (re-announce sec), broadcastDuration (on-screen pulse length
+	// sec, not the countdown — the countdown is timestamp-now), cancel.
+	if err := rmqServiceBroadcastShutdown("Restart", at.Unix(), 60, 30, false); err != nil {
 		componentLog("scheduled_restart").Error().Err(err).Msg("warning broadcast failed")
 	}
 }

@@ -8,7 +8,7 @@ import { CategoryPanel } from './CategoryPanel'
 // category cards. Empty sections render nothing.
 export const CategorySection: React.FC<CategorySectionProps> = ({
   title, description, categories, expandedCategory, onToggle,
-  searching, pending, onChange, onDelete, isAmpManaged,
+  searching, pending, onChange, onDelete, isAmpManaged, userSources,
 }) => {
   if (categories.length === 0) return null
 
@@ -22,7 +22,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
           {categories.map(([cat, catItems]) => (
             <div key={cat}>
               <div className="mb-1">
-                <CategoryButton cat={cat} catItems={catItems} isOpen onToggle={onToggle} />
+                <CategoryButton cat={cat} catItems={catItems} isOpen onToggle={onToggle} userSources={userSources} />
               </div>
               <CategoryPanel
                 cat={cat}
@@ -33,6 +33,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                 onDelete={onDelete}
                 onToggle={onToggle}
                 isAmpManaged={isAmpManaged}
+                userSources={userSources}
               />
             </div>
           ))}
@@ -57,6 +58,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             catItems={expandedEntry[1]}
             isOpen
             onToggle={onToggle}
+            userSources={userSources}
           />
           <CategoryPanel
             cat={expandedEntry[0]}
@@ -67,6 +69,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             onDelete={onDelete}
             onToggle={onToggle}
             isAmpManaged={isAmpManaged}
+            userSources={userSources}
           />
         </div>
       )}
@@ -80,6 +83,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               catItems={catItems}
               isOpen={false}
               onToggle={onToggle}
+              userSources={userSources}
             />
           ))}
         </div>

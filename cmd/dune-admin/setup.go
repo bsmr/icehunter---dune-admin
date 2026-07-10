@@ -508,14 +508,22 @@ func runAmpSetup(ask func(string, string) string, ok, fail func(string), cfg *ap
 	useContainer := topology != "native"
 	cfg.AmpUseContainer = &useContainer
 
+	if useContainer {
+		defaultContainer := "AMP_" + cfg.AmpInstance
+		cfg.AmpContainer = ask("Container name", defaultContainer)
+		cfg.AmpContainerRuntime = ask("Container runtime [podman/docker]", "podman")
+	}
+
 	// ── Game install root: try to probe the container instead of hardcoding
 	//     `/AMP/duneawakening`. Falls back to the historical default if the
 	//     probe can't answer (container not running, non-standard layout, etc.)
+	//     Asked after the runtime question above so the probe uses the
+	//     operator's chosen container CLI instead of assuming podman (#278).
 	gameRoot := "/AMP/duneawakening"
 	if useContainer && selected != nil && selected.InContainer {
 		probeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		container := "AMP_" + cfg.AmpInstance
-		if root, _ := probeGameRoot(probeCtx, cfg.AmpUser, container); root != "" {
+		if root, _ := probeGameRoot(probeCtx, cfg.AmpUser, cfg.AmpContainerRuntime, container); root != "" {
 			gameRoot = root
 			fmt.Printf("Detected game install root: %s\n", gameRoot)
 		}
@@ -535,11 +543,6 @@ func runAmpSetup(ask func(string, string) string, ok, fail func(string), cfg *ap
 		defaultIniDir = gameRoot + "/extracted/game-server/home/dune/server/DuneSandbox/Saved/Config/LinuxServer"
 	}
 
-	if useContainer {
-		defaultContainer := "AMP_" + cfg.AmpInstance
-		cfg.AmpContainer = ask("Container name", defaultContainer)
-		cfg.AmpContainerRuntime = ask("Container runtime [podman/docker]", "podman")
-	}
 	cfg.AmpLogPath = ask("Log directory", defaultLogPath)
 	cfg.DirectorURL = ask("Battlegroup Director URL (optional)", "http://127.0.0.1:11717")
 	fmt.Println()

@@ -11,6 +11,10 @@ export interface CategorySectionProps {
   onChange: (item: ServerSetting, value: string) => void
   onDelete: (item: ServerSetting) => Promise<void>
   isAmpManaged: (item: ServerSetting) => boolean
+  // Layer sources that count as a genuine operator override on the active
+  // control plane (see userSourcesFor, constants.ts) — determines the
+  // "overridden" badge count and the delete/trash affordance.
+  userSources: Set<string>
 }
 
 export interface CategoryButtonProps {
@@ -18,6 +22,7 @@ export interface CategoryButtonProps {
   catItems: ServerSetting[]
   isOpen: boolean
   onToggle: (cat: string) => void
+  userSources: Set<string>
 }
 
 export interface CategoryPanelProps {
@@ -29,6 +34,7 @@ export interface CategoryPanelProps {
   onDelete: (item: ServerSetting) => Promise<void>
   onToggle: (cat: string) => void
   isAmpManaged: (item: ServerSetting) => boolean
+  userSources: Set<string>
 }
 
 export interface RawSectionPanelProps {
@@ -44,4 +50,5 @@ export interface SettingRowProps {
   // True when the active control plane is AMP and this is a curated, AMP-managed
   // setting (written through the AMP API rather than the INI files).
   ampManaged?: boolean
+  userSources: Set<string>
 }

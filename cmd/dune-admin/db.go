@@ -2751,8 +2751,8 @@ func cmdDescribeTable(pool *pgxpool.Pool, tbl string) Cmd {
 			SELECT column_name, data_type,
 			       CASE is_nullable WHEN 'YES' THEN 'null' ELSE 'not null' END
 			FROM information_schema.columns
-			WHERE table_schema = $1::text AND table_name = $2::text
-			ORDER BY ordinal_position`, dbSchema, tbl)
+			WHERE table_schema = current_schema() AND table_name = $1::text
+			ORDER BY ordinal_position`, tbl)
 		if err != nil {
 			return msgDescribe{table: tbl, err: err}
 		}
@@ -2775,7 +2775,13 @@ func cmdDescribeTable(pool *pgxpool.Pool, tbl string) Cmd {
 func sampleTableQuery(tbl string, limit int) string {
 	// Sanitize table name defensively even though tbl comes from pg_stat_user_tables.
 	// pgx.Identifier handles quoting and escaping to prevent SQL injection.
-	safeTable := pgx.Identifier{dbSchema, tbl}.Sanitize()
+	//
+	// Deliberately a bare (unqualified) identifier: it resolves through the
+	// connection's search_path, not the package-level dbSchema global, which
+	// is empty at runtime after the multi-server refactor (#283). Qualifying
+	// with the empty global used to produce `FROM "".tbl`, a Postgres
+	// "zero-length delimited identifier" error (SQLSTATE 42601).
+	safeTable := pgx.Identifier{tbl}.Sanitize()
 	return fmt.Sprintf("SELECT * FROM %s LIMIT %d", safeTable, limit)
 }
 
@@ -2839,9 +2845,9 @@ func cmdSearchColumns(pool *pgxpool.Pool, term string) Cmd {
 		rows, err := pool.Query(context.Background(), `
 			SELECT table_name, column_name, data_type
 			FROM information_schema.columns
-			WHERE table_schema = $1::text
-			  AND (column_name ILIKE $2::text OR table_name ILIKE $2::text)
-			ORDER BY table_name, column_name`, dbSchema, "%"+term+"%")
+			WHERE table_schema = current_schema()
+			  AND (column_name ILIKE $1::text OR table_name ILIKE $1::text)
+			ORDER BY table_name, column_name`, "%"+term+"%")
 		if err != nil {
 			return msgSearchCols{err: err}
 		}
@@ -6295,6 +6301,36 @@ func cmdFetchPlayerPgStats(ctx context.Context, pool *pgxpool.Pool, accountID in
 	if err := rows.Err(); err != nil {
 		return stats, fmt.Errorf("iterate currency: %w", err)
 	}
+
+	// Solari is also representable as a stackable inventory item (SolarisCoin),
+	// separate from the bank ledger above (dune_exchange_retrieve_solaris_from_item
+	// converts one into the other, confirming they're genuinely distinct stores).
+	// The bank-only total under-reported a player's wealth (#266) — add Solari
+	// the player is carrying, plus Solari sitting in containers they own, using
+	// the same ownership-chain join as cmdListStorageContainers. Top-level
+	// inventories only (no recursion into sub-containers nested inside those).
+	var itemSolari int64
+	itemRow := pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(i.stack_size), 0)
+		FROM dune.items i
+		JOIN dune.inventories inv ON inv.id = i.inventory_id
+		WHERE lower(i.template_id) = 'solariscoin'
+		  AND (
+		    inv.actor_id IN (SELECT player_pawn_id FROM dune.player_state WHERE account_id = $1)
+		    OR inv.actor_id IN (
+		      SELECT p.id
+		      FROM dune.placeables p
+		      JOIN dune.actor_fgl_entities afe    ON afe.entity_id = p.owner_entity_id
+		      JOIN dune.permission_actor_rank par ON par.permission_actor_id = afe.actor_id
+		      JOIN dune.actors player_a           ON player_a.id = par.player_id
+		      WHERE player_a.owner_account_id = $1
+		    )
+		  )
+	`, accountID)
+	if err := itemRow.Scan(&itemSolari); err != nil {
+		return stats, fmt.Errorf("fetch item-form solari for account %d: %w", accountID, err)
+	}
+	stats.SolarisBal += itemSolari
 
 	// Earned/spent totals from event_log, joined directly via dune.accounts."user"
 	// which stores the hex PlayFab entity ID used as event_log.meta->>'fls_id'.

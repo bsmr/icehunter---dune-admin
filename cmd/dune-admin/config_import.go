@@ -25,6 +25,10 @@ func hydrateConfigFromStore() {
 	if globalStore == nil {
 		return
 	}
+	// Captured before the DB settings load below overwrites loadedConfig —
+	// see backfillAmpContainerRuntime. Empty for multi-server configs, which
+	// have no such top-level field.
+	flatRuntime := loadedConfig.AmpContainerRuntime
 	marker, err := metaGet(globalStore, configImportMarker)
 	if err != nil {
 		componentLog("config_import").Error().Err(err).Msg("read marker")
@@ -61,6 +65,7 @@ func hydrateConfigFromStore() {
 	if err != nil {
 		componentLog("config_import").Error().Err(err).Msg("list servers")
 	} else {
+		backfillAmpContainerRuntime(flatRuntime, servers)
 		loadedConfig.Servers = servers
 	}
 
@@ -167,6 +172,33 @@ func noServerConfigured() bool {
 	}
 	_, ok := firstServerID()
 	return !ok
+}
+
+// backfillAmpContainerRuntime fixes a one-time gap for operators who added
+// `amp_container_runtime` to a flat (single-server) config.yaml *after* the
+// initial DB import: config.yaml -> DB import only runs once (guarded by
+// configImportMarker), so a value added later used to be silently ignored —
+// the persisted default server kept an empty amp_container_runtime, which
+// runtimeCLI() then defaults to "podman", breaking docker installs (#278).
+//
+// flatRuntime is config.yaml's top-level amp_container_runtime, captured in
+// hydrateConfigFromStore before the DB settings load overwrites loadedConfig;
+// it's empty for multi-server configs (that shape has no such top-level
+// field), so this is a no-op there. Mutates servers[0] in place (DB + the
+// in-memory slice, so the fix is visible in the same boot) only when its
+// stored runtime is genuinely empty — never overwrites a runtime the
+// operator already set, so this is safe to call on every boot.
+func backfillAmpContainerRuntime(flatRuntime string, servers []ServerConfig) {
+	if flatRuntime == "" || len(servers) == 0 || servers[0].AmpContainerRuntime != "" {
+		return
+	}
+	servers[0].AmpContainerRuntime = flatRuntime
+	if globalServersStore == nil {
+		return
+	}
+	if err := globalServersStore.updateServer(servers[0]); err != nil {
+		componentLog("config_import").Error().Err(err).Msg("backfill amp_container_runtime")
+	}
 }
 
 func btoi(b bool) int {

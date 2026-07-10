@@ -213,3 +213,103 @@ func TestHydrateConfigFromStore_ImportsOnceThenIdempotent(t *testing.T) {
 		t.Errorf("servers = %d after second hydrate, want 1 (no re-import)", len(list))
 	}
 }
+
+// ── #278: amp_container_runtime backfill for flat (single-server) configs ────
+//
+// An operator on the legacy flat config.yaml shape (no Servers[]) who adds
+// `amp_container_runtime: docker` *after* their first boot (marker already
+// written) previously had it silently ignored forever: the config.yaml -> DB
+// import only runs once. The default server's DB row kept an empty
+// amp_container_runtime, so runtimeCLI() defaulted to "podman" and every AMP
+// API call failed with "podman: command not found" on a docker install.
+
+func TestBackfillAmpContainerRuntime_FillsEmptyFromFlatConfig(t *testing.T) {
+	t.Parallel()
+	servers := []ServerConfig{{ID: 1, AmpContainerRuntime: ""}, {ID: 2, AmpContainerRuntime: ""}}
+	backfillAmpContainerRuntime("docker", servers)
+	if servers[0].AmpContainerRuntime != "docker" {
+		t.Errorf("servers[0].AmpContainerRuntime = %q, want %q", servers[0].AmpContainerRuntime, "docker")
+	}
+	if servers[1].AmpContainerRuntime != "" {
+		t.Errorf("servers[1] must be untouched, got %q", servers[1].AmpContainerRuntime)
+	}
+}
+
+func TestBackfillAmpContainerRuntime_NoopWhenFlatRuntimeEmpty(t *testing.T) {
+	t.Parallel()
+	// Multi-server configs have no top-level amp_container_runtime — must be a no-op.
+	servers := []ServerConfig{{ID: 1, AmpContainerRuntime: ""}}
+	backfillAmpContainerRuntime("", servers)
+	if servers[0].AmpContainerRuntime != "" {
+		t.Errorf("expected no-op with empty flatRuntime, got %q", servers[0].AmpContainerRuntime)
+	}
+}
+
+func TestBackfillAmpContainerRuntime_NeverOverwritesAnExistingValue(t *testing.T) {
+	t.Parallel()
+	// The operator already set (or the first import already seeded) a runtime —
+	// must never be clobbered, even if config.yaml now says something else.
+	servers := []ServerConfig{{ID: 1, AmpContainerRuntime: "podman"}}
+	backfillAmpContainerRuntime("docker", servers)
+	if servers[0].AmpContainerRuntime != "podman" {
+		t.Errorf("existing runtime overwritten: got %q, want %q", servers[0].AmpContainerRuntime, "podman")
+	}
+}
+
+func TestBackfillAmpContainerRuntime_NoopWhenNoServers(t *testing.T) {
+	t.Parallel()
+	backfillAmpContainerRuntime("docker", nil) // must not panic
+}
+
+// TestHydrateConfigFromStore_BackfillsAmpContainerRuntimeOnLaterBoot is the
+// end-to-end regression test for #278: simulate a server that was already
+// imported (marker set, runtime empty), then a later boot with
+// `amp_container_runtime: docker` freshly present in config.yaml — the
+// existing DB row must be corrected without a second import.
+func TestHydrateConfigFromStore_BackfillsAmpContainerRuntimeOnLaterBoot(t *testing.T) {
+	t.Setenv("DUNE_ADMIN_CONFIG_DIR", t.TempDir())
+	db := openSharedScopeDB(t)
+	useTestServerStores(t, db)
+
+	origCfg := loadedConfig
+	origControlPlane := controlPlane
+	t.Cleanup(func() { loadedConfig = origCfg; controlPlane = origControlPlane })
+
+	// flatConfigHasConnection() checks the flag-globals (not the appConfig
+	// struct), so a real single-server import needs one set — mirrors
+	// TestImportConfigYAML_LegacyFlatSingleServer.
+	controlPlane = "amp"
+
+	// First boot: flat config, no amp_container_runtime configured yet.
+	loadedConfig = appConfig{ListenAddr: ":8080", Control: "amp"}
+	if err := writeConfigFile(loadedConfig); err != nil {
+		t.Fatalf("seed write: %v", err)
+	}
+	hydrateConfigFromStore()
+
+	list, err := globalServersStore.listServers()
+	if err != nil || len(list) != 1 {
+		t.Fatalf("expected 1 imported server, got %d (err=%v)", len(list), err)
+	}
+	if list[0].AmpContainerRuntime != "" {
+		t.Fatalf("precondition: expected empty runtime after first import, got %q", list[0].AmpContainerRuntime)
+	}
+
+	// Later boot: operator added amp_container_runtime to config.yaml. The
+	// import marker is already set, so importConfigYAMLIntoStore must NOT
+	// run again — only the backfill should correct the stored runtime.
+	loadedConfig = appConfig{ListenAddr: ":8080", Control: "amp", AmpContainerRuntime: "docker"}
+	hydrateConfigFromStore()
+
+	list, err = globalServersStore.listServers()
+	if err != nil || len(list) != 1 {
+		t.Fatalf("expected still exactly 1 server (no re-import), got %d (err=%v)", len(list), err)
+	}
+	if list[0].AmpContainerRuntime != "docker" {
+		t.Errorf("DB server runtime = %q, want %q (backfilled)", list[0].AmpContainerRuntime, "docker")
+	}
+	if loadedConfig.Servers[0].AmpContainerRuntime != "docker" {
+		t.Errorf("loadedConfig.Servers[0].AmpContainerRuntime = %q, want %q (same-boot visibility)",
+			loadedConfig.Servers[0].AmpContainerRuntime, "docker")
+	}
+}

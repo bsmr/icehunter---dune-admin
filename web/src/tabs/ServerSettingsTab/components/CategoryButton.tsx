@@ -1,15 +1,15 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Icon } from '../../../dune-ui'
-import { CATEGORY_ICONS, CATEGORY_LABELS, USER_SOURCES } from '../constants'
+import { CATEGORY_ICONS, CATEGORY_LABELS } from '../constants'
 import type { CategoryButtonProps } from './interfaces'
 
 export const CategoryButton: React.FC<CategoryButtonProps> = ({
-  cat, catItems, isOpen, onToggle,
+  cat, catItems, isOpen, onToggle, userSources,
 }) => {
   const { t } = useTranslation()
   const overrideCount = catItems.filter((i) =>
-    i.layers.some((l) => USER_SOURCES.has(l.source)),
+    i.layers.some((l) => userSources.has(l.source)),
   ).length
 
   return (

@@ -17,7 +17,7 @@ Replace the current `deploy/Dockerfile` and `deploy/docker-compose.yml` (minimal
 ### `deploy/Dockerfile`
 
 ```dockerfile
-FROM golang:1.26.3 AS builder
+FROM golang:1.26.5 AS builder
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download

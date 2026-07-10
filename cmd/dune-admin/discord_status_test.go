@@ -680,7 +680,12 @@ func TestAggregateMapCounts(t *testing.T) {
 		})
 	})
 
-	t.Run("director labels present, used verbatim", func(t *testing.T) {
+	// #254: the director label's trailing "_N" is stripped before use — for
+	// distinct multi-instance partitions that collide after stripping (as
+	// here, both reduce to "Survival"), the existing " #N" disambiguation
+	// (driven by partition index, not the director's raw naming) takes over,
+	// instead of leaking the director's underscore-number convention verbatim.
+	t.Run("director labels present, trailing _N stripped then re-disambiguated", func(t *testing.T) {
 		t.Parallel()
 		servers := []ServerRow{
 			{Map: "Survival_1", Sietch: "Survival_1", Partition: 1, Players: 12},
@@ -688,9 +693,34 @@ func TestAggregateMapCounts(t *testing.T) {
 			{Map: "DeepDesert", Players: 3},
 		}
 		check(t, aggregateMapCounts(servers), map[string]int{
-			"Survival_1":  12,
-			"Survival_2":  8,
+			"Survival #1": 12,
+			"Survival #2": 8,
 			"Deep Desert": 3,
+		})
+	})
+
+	// #254: a single-instance map (Arrakeen/Harko/Deep Desert) whose director
+	// label still carries a meaningless "_1" must NOT show it — there's only
+	// one partition, so no disambiguation is needed at all.
+	t.Run("single-instance director label loses its confusing _N suffix", func(t *testing.T) {
+		t.Parallel()
+		servers := []ServerRow{
+			{Map: "Arrakeen", Sietch: "Arrakeen_1", Partition: 1, Players: 7},
+		}
+		check(t, aggregateMapCounts(servers), map[string]int{
+			"Arrakeen": 7,
+		})
+	})
+
+	// #254: a custom (renamed) Sietch label with no trailing _N must pass
+	// through unchanged — the fix must not mangle real operator-chosen names.
+	t.Run("custom Sietch label without a numeric suffix is untouched", func(t *testing.T) {
+		t.Parallel()
+		servers := []ServerRow{
+			{Map: "Survival_3", Sietch: "Alraab", Partition: 3, Players: 4},
+		}
+		check(t, aggregateMapCounts(servers), map[string]int{
+			"Alraab": 4,
 		})
 	})
 

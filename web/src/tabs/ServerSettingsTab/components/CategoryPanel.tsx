@@ -8,7 +8,7 @@ import { CATEGORY_LABELS } from '../constants'
 import type { CategoryPanelProps } from './interfaces'
 
 export const CategoryPanel: React.FC<CategoryPanelProps> = ({
-  cat, catItems, searching, pending, onChange, onDelete, onToggle, isAmpManaged,
+  cat, catItems, searching, pending, onChange, onDelete, onToggle, isAmpManaged, userSources,
 }) => {
   const { t } = useTranslation()
   const pendingKey = (item: ServerSetting) => `${item.section}|${item.key}`
@@ -37,6 +37,7 @@ export const CategoryPanel: React.FC<CategoryPanelProps> = ({
             pending={pending.get(pendingKey(item))}
             onChange={(v) => onChange(item, v)}
             onDelete={() => onDelete(item)}
+            userSources={userSources}
           />
         ))}
       </div>
