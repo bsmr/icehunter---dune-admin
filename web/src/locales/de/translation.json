@@ -1150,8 +1150,11 @@
         "template": "Vorlage"
       },
       "deleteOnlineWarning": "Spieler ist online — Das Löschen von Gegenständen kann zu Inventar-Desynchronisierungen führen. Fortfahren?",
-      "itemDeleted": "Gegenstand gelöscht",
-      "itemsDeleted": "{{count}} Gegenstand/Gegenstände gelöscht",
+      "edit": "Bearbeiten",
+      "editItem": "{{name}} bearbeiten",
+      "itemDeleted": "Gegenstand gelöscht — zum Anzeigen im Spiel neu einloggen",
+      "itemUpdated": "Gegenstand aktualisiert — zum Anzeigen im Spiel neu einloggen",
+      "itemsDeleted": "{{count}} Gegenstand/Gegenstände gelöscht — zum Anzeigen im Spiel neu einloggen",
       "deleteSelected": "Ausgewählte löschen",
       "itemsLabel": "Gegenstände",
       "noItemsFound": "Keine Gegenstände gefunden",

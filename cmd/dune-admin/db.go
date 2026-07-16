@@ -2231,7 +2231,7 @@ func cmdDeleteItem(pool *pgxpool.Pool, itemID int64) Cmd {
 		if err != nil {
 			return msgMutate{err: fmt.Errorf("delete item: %w", err)}
 		}
-		return msgMutate{ok: fmt.Sprintf("Deleted item %d", itemID)}
+		return msgMutate{ok: fmt.Sprintf("Deleted item %d — relog to see in-game", itemID)}
 	}
 }
 
@@ -4641,6 +4641,26 @@ func intelAtLevel(level int) int64 {
 	}
 }
 
+// errPlayerOnline classifies a checkPlayerOfflinePool failure as "the player
+// is online" specifically, as opposed to a genuine error (DB failure, etc).
+// Callers that can defer instead of failing outright — the battlepass
+// auto-grant loop (#259/#280) — use errors.Is(err, errPlayerOnline) to retry
+// on a short backoff without spending one of their limited attempts.
+var errPlayerOnline = errors.New("player is online")
+
+// playerOnlineError is returned by checkPlayerOfflinePool when the player is
+// online. Its Error() text is the existing admin-facing message; Is lets
+// callers classify it via errors.Is(err, errPlayerOnline) without changing
+// that message (many call sites — giveItems, blueprints, welcome packages —
+// surface .Error() directly to the operator).
+type playerOnlineError struct{ status string }
+
+func (e *playerOnlineError) Error() string {
+	return fmt.Sprintf("player is currently %s — log out first, then apply the edit", e.status)
+}
+
+func (e *playerOnlineError) Is(target error) bool { return target == errPlayerOnline }
+
 // checkPlayerOffline returns an error if the player is currently online.
 // playerID is the pawn actor ID (PlayerCharacter).
 func checkPlayerOffline(ctx context.Context, pool *pgxpool.Pool, playerID int64) error {
@@ -4662,7 +4682,7 @@ func checkPlayerOfflinePool(ctx context.Context, pool *pgxpool.Pool, playerID in
 		return fmt.Errorf("could not check online status: %w", err)
 	}
 	if status != "Offline" {
-		return fmt.Errorf("player is currently %s — log out first, then apply the edit", status)
+		return &playerOnlineError{status: status}
 	}
 	return nil
 }
@@ -5455,6 +5475,39 @@ func cmdRepairItem(pool *pgxpool.Pool, itemID int64) Cmd {
 	}
 }
 
+// cmdUpdateItem edits an existing item's stack size and quality grade
+// directly (#256) — the only prior edit paths were Repair (durability only)
+// and Delete; stack/quality were otherwise read-only in the admin UI despite
+// the DB happily storing any value. Offline-gated like Repair since the game
+// server owns the live copy while a player is connected.
+func cmdUpdateItem(pool *pgxpool.Pool, itemID, stackSize, quality int64) Cmd {
+	return func() Msg {
+		if pool == nil {
+			return msgMutate{err: fmt.Errorf("not connected")}
+		}
+		ctx := context.Background()
+
+		pawnID, err := lookupRepairItemOwner(ctx, pool, itemID)
+		if err != nil {
+			return msgMutate{err: err}
+		}
+		if err := checkPlayerOffline(ctx, pool, pawnID); err != nil {
+			return msgMutate{err: err}
+		}
+
+		res, err := pool.Exec(ctx, `
+			UPDATE dune.items SET stack_size = $2::bigint, quality_level = $3::bigint
+			WHERE id = $1::bigint`, itemID, stackSize, quality)
+		if err != nil {
+			return msgMutate{err: fmt.Errorf("update item: %w", err)}
+		}
+		if res.RowsAffected() == 0 {
+			return msgMutate{err: fmt.Errorf("item %d not found", itemID)}
+		}
+		return msgMutate{ok: fmt.Sprintf("Updated item %d — relog to see in-game", itemID)}
+	}
+}
+
 // Carried inventories: backpack, equipment, emote wheel, equipped weapons, action wheel, bank.
 var repairGearInventoryTypes = []int32{0, 1, 14, 15, 27, 30}
 
@@ -6036,10 +6089,14 @@ func cmdListStorageContainers(pool *pgxpool.Pool) Msg {
 	// Drive from dune.placeables so we catch player-built containers regardless
 	// of whether they've been promoted to an actor row yet (the game creates the
 	// actor lazily on first interaction). building_type is the in-data identity
-	// of the placeable kind; the four below cover the storage-container tiers,
+	// of the placeable kind; the six below cover the storage-container tiers,
 	// noting that "Small Storage Container" registers as SpiceSilo_Placeable
 	// despite sharing the type name with world POI silos — owner_entity_id
-	// distinguishes player-built from world-spawned.
+	// distinguishes player-built from world-spawned. Totem_Placeable /
+	// Totem_Small_Placeable are the Advanced Sub-Fief Console / Sub-Fief
+	// Console — Patch 1.2 gave sub-fiefs their own storage compartment, which
+	// lives on the console's own inventory (same actor_id-keyed join as any
+	// other container, confirmed against a live server) (#263).
 	// User-given container names live on dune.permission_actor.actor_name.
 	// Unnamed containers default to 'None' or '##<PlaceableType>_Placeable' —
 	// filter both out so only real custom names surface.
@@ -6068,7 +6125,9 @@ func cmdListStorageContainers(pool *pgxpool.Pool) Msg {
 		    'SpiceSilo_Placeable',
 		    'GenericContainer_Placeable',
 		    'StorageContainer_Placeable',
-		    'MediumStorageContainer_Placeable'
+		    'MediumStorageContainer_Placeable',
+		    'Totem_Placeable',
+		    'Totem_Small_Placeable'
 		  )
 		  AND p.is_hologram = false
 		  AND p.owner_entity_id IS NOT NULL

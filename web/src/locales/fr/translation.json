@@ -1167,8 +1167,11 @@
         "template": "Modèle"
       },
       "deleteOnlineWarning": "Le joueur est en ligne — la suppression d'objets peut provoquer des désynchronisations d'inventaire. Continuer ?",
-      "itemDeleted": "Objet supprimé",
-      "itemsDeleted": "{{count}} objet(s) supprimé(s)",
+      "edit": "Modifier",
+      "editItem": "Modifier {{name}}",
+      "itemDeleted": "Objet supprimé — reconnectez-vous pour voir le changement en jeu",
+      "itemUpdated": "Objet mis à jour — reconnectez-vous pour le voir en jeu",
+      "itemsDeleted": "{{count}} objet(s) supprimé(s) — reconnectez-vous pour voir le changement en jeu",
       "deleteSelected": "Supprimer la sélection",
       "itemsLabel": "Objets",
       "noItemsFound": "Aucun objet trouvé",

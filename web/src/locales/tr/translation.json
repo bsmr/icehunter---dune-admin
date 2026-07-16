@@ -1150,8 +1150,11 @@
         "template": "Şablon"
       },
       "deleteOnlineWarning": "Oyuncu çevrimiçi — eşya silmek envanter senkronizasyon sorunlarına yol açabilir. Devam edilsin mi?",
-      "itemDeleted": "Eşya silindi",
-      "itemsDeleted": "{{count}} eşya silindi",
+      "edit": "Düzenle",
+      "editItem": "{{name}} öğesini düzenle",
+      "itemDeleted": "Eşya silindi — oyun içinde görmek için tekrar giriş yapın",
+      "itemUpdated": "Eşya güncellendi — oyun içinde görmek için tekrar giriş yapın",
+      "itemsDeleted": "{{count}} eşya silindi — oyun içinde görmek için tekrar giriş yapın",
       "deleteSelected": "Seçilenleri sil",
       "itemsLabel": "Eşyalar",
       "noItemsFound": "Eşya bulunamadı",
