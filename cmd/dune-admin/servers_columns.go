@@ -59,6 +59,8 @@ var serverColumnAlters = []string{
 	"ALTER TABLE servers ADD COLUMN amp_pg_bin TEXT NOT NULL DEFAULT ''",
 	"ALTER TABLE servers ADD COLUMN amp_pg_lib TEXT NOT NULL DEFAULT ''",
 	"ALTER TABLE servers ADD COLUMN amp_backup_dir TEXT NOT NULL DEFAULT ''",
+	"ALTER TABLE servers ADD COLUMN amp_container_stop_timeout INTEGER NOT NULL DEFAULT 0",
+	"ALTER TABLE servers ADD COLUMN amp_update_auto_restart INTEGER",
 	"ALTER TABLE servers ADD COLUMN director_url TEXT NOT NULL DEFAULT ''",
 	"ALTER TABLE servers ADD COLUMN market_bot_enabled INTEGER",
 	"ALTER TABLE servers ADD COLUMN web_interface_host_override TEXT NOT NULL DEFAULT ''",
@@ -89,6 +91,7 @@ const serverColumnNames = `ssh_host, ssh_user, ssh_key, ssh_mode, ssh_extra_opts
 	broker_exec_prefix, backup_dir, server_ini_dir, default_ini_dir,
 	amp_instance, amp_container, amp_user, amp_log_path, amp_use_container, amp_container_runtime,
 	amp_data_root, amp_api_user, amp_api_pass, amp_api_port, amp_pg_bin, amp_pg_lib, amp_backup_dir,
+	amp_container_stop_timeout, amp_update_auto_restart,
 	director_url, market_bot_enabled, web_interface_host_override, timezone,
 	data_plane, kubectl_no_sudo, kubectl_bin`
 
@@ -104,7 +107,8 @@ func writeServerColumns(db dbExecer, id int, cfg ServerConfig) error {
 		broker_jwt_secret=?, broker_exec_prefix=?, backup_dir=?, server_ini_dir=?, default_ini_dir=?,
 		amp_instance=?, amp_container=?, amp_user=?, amp_log_path=?, amp_use_container=?,
 		amp_container_runtime=?, amp_data_root=?, amp_api_user=?, amp_api_pass=?, amp_api_port=?,
-		amp_pg_bin=?, amp_pg_lib=?, amp_backup_dir=?, director_url=?, market_bot_enabled=?,
+		amp_pg_bin=?, amp_pg_lib=?, amp_backup_dir=?,
+		amp_container_stop_timeout=?, amp_update_auto_restart=?, director_url=?, market_bot_enabled=?,
 		web_interface_host_override=?, timezone=?,
 		data_plane=?, kubectl_no_sudo=?, kubectl_bin=?
 		WHERE id=?`,
@@ -116,7 +120,8 @@ func writeServerColumns(db dbExecer, id int, cfg ServerConfig) error {
 		cfg.BrokerJWTSecret, cfg.BrokerExecPrefix, cfg.BackupDir, cfg.ServerIniDir, cfg.DefaultIniDir,
 		cfg.AmpInstance, cfg.AmpContainer, cfg.AmpUser, cfg.AmpLogPath, boolPtrToNullInt(cfg.AmpUseContainer),
 		cfg.AmpContainerRuntime, cfg.AmpDataRoot, cfg.AmpAPIUser, cfg.AmpAPIPass, cfg.AmpAPIPort,
-		cfg.AmpPgBin, cfg.AmpPgLib, cfg.AmpBackupDir, cfg.DirectorURL, boolPtrToNullInt(cfg.MarketBotEnabled),
+		cfg.AmpPgBin, cfg.AmpPgLib, cfg.AmpBackupDir,
+		cfg.AmpContainerStopTimeout, boolPtrToNullInt(cfg.AmpUpdateAutoRestart), cfg.DirectorURL, boolPtrToNullInt(cfg.MarketBotEnabled),
 		cfg.WebInterfaceHostOverride, cfg.Timezone,
 		cfg.DataPlane, b2i(cfg.KubectlNoSudo), cfg.KubectlBin,
 		id)
@@ -131,7 +136,7 @@ func writeServerColumns(db dbExecer, id int, cfg ServerConfig) error {
 func readServerColumns(db dbRowQueryer, id int) (ServerConfig, error) {
 	var cfg ServerConfig
 	var autoDiscover, brokerTLS, kubectlNoSudo int
-	var ampUseContainer, marketBotEnabled sql.NullInt64
+	var ampUseContainer, marketBotEnabled, ampUpdateAutoRestart sql.NullInt64
 	err := db.QueryRow(`SELECT `+serverColumnNames+` FROM servers WHERE id=?`, id).Scan(
 		&cfg.SSHHost, &cfg.SSHUser, &cfg.SSHKey, &cfg.SSHMode, &cfg.SSHExtraOpts, &autoDiscover,
 		&cfg.DBHost, &cfg.DBPort, &cfg.DBUser, &cfg.DBPass, &cfg.DBName, &cfg.DBSchema, &cfg.Control,
@@ -141,7 +146,8 @@ func readServerColumns(db dbRowQueryer, id int) (ServerConfig, error) {
 		&cfg.BrokerJWTSecret, &cfg.BrokerExecPrefix, &cfg.BackupDir, &cfg.ServerIniDir, &cfg.DefaultIniDir,
 		&cfg.AmpInstance, &cfg.AmpContainer, &cfg.AmpUser, &cfg.AmpLogPath, &ampUseContainer,
 		&cfg.AmpContainerRuntime, &cfg.AmpDataRoot, &cfg.AmpAPIUser, &cfg.AmpAPIPass, &cfg.AmpAPIPort,
-		&cfg.AmpPgBin, &cfg.AmpPgLib, &cfg.AmpBackupDir, &cfg.DirectorURL, &marketBotEnabled,
+		&cfg.AmpPgBin, &cfg.AmpPgLib, &cfg.AmpBackupDir,
+		&cfg.AmpContainerStopTimeout, &ampUpdateAutoRestart, &cfg.DirectorURL, &marketBotEnabled,
 		&cfg.WebInterfaceHostOverride, &cfg.Timezone,
 		&cfg.DataPlane, &kubectlNoSudo, &cfg.KubectlBin)
 	if err != nil {
@@ -152,6 +158,7 @@ func readServerColumns(db dbRowQueryer, id int) (ServerConfig, error) {
 	cfg.BrokerTLS = brokerTLS != 0
 	cfg.KubectlNoSudo = kubectlNoSudo != 0
 	cfg.AmpUseContainer = nullIntToBoolPtr(ampUseContainer)
+	cfg.AmpUpdateAutoRestart = nullIntToBoolPtr(ampUpdateAutoRestart)
 	cfg.MarketBotEnabled = nullIntToBoolPtr(marketBotEnabled)
 	return cfg, nil
 }

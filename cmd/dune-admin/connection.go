@@ -383,6 +383,9 @@ func legacyServerFromFlat(ac appConfig) ServerConfig {
 		AmpPgBin:            ac.AmpPgBin,
 		AmpPgLib:            ac.AmpPgLib,
 		AmpBackupDir:        ac.AmpBackupDir,
+
+		AmpContainerStopTimeout: ac.AmpContainerStopTimeout,
+		AmpUpdateAutoRestart:    ac.AmpUpdateAutoRestart,
 		// Director proxy
 		DirectorURL: ac.DirectorURL,
 		// Migrate the legacy global market-bot toggle onto the default server so
@@ -443,6 +446,8 @@ func serverCfgToAppConfig(sc ServerConfig) appConfig {
 	ac.AmpPgBin = sc.AmpPgBin
 	ac.AmpPgLib = sc.AmpPgLib
 	ac.AmpBackupDir = sc.AmpBackupDir
+	ac.AmpContainerStopTimeout = sc.AmpContainerStopTimeout
+	ac.AmpUpdateAutoRestart = sc.AmpUpdateAutoRestart
 	ac.DirectorURL = sc.DirectorURL
 	ac.MarketBotEnabled = sc.MarketBotEnabled
 	ac.WebInterfaceHostOverride = sc.WebInterfaceHostOverride

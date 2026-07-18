@@ -224,6 +224,18 @@ type appConfig struct {
 	AmpPgLib     string `yaml:"amp_pg_lib"     json:"amp_pg_lib"`
 	AmpBackupDir string `yaml:"amp_backup_dir" json:"amp_backup_dir"`
 
+	// AmpContainerStopTimeout is the seconds `<runtime> restart` waits for a
+	// graceful stop before SIGKILL in container mode. 0 → the built-in default
+	// (ampContainerStopTimeout). The runtime default of 10s is too short for the
+	// game shards + in-container Postgres/RabbitMQ and can leave the container
+	// wedged in "stopping" when podman escalates to SIGKILL.
+	AmpContainerStopTimeout int `yaml:"amp_container_stop_timeout" json:"amp_container_stop_timeout"`
+	// AmpUpdateAutoRestart controls whether an AMP "update" automatically restarts
+	// the container once the SteamCMD update finishes (so it boots on the new
+	// files). nil/unset → true. Set false to have update only trigger the update
+	// and leave restarting to the operator.
+	AmpUpdateAutoRestart *bool `yaml:"amp_update_auto_restart" json:"amp_update_auto_restart"`
+
 	// ── Embedded market bot ────────────────────────────────────────────────
 	// MarketBotEnabled starts the market bot as an in-process goroutine.
 	// Pointer so we can distinguish "unset" (default-on) from "explicitly false".
@@ -1120,6 +1132,7 @@ func startBackgroundServices(ctx context.Context) {
 	initGivePacksStore()
 	initEventStore()
 	initBattlepassStore()
+	initCharacterBackupsStore()
 }
 
 // initLocationStore opens (or creates) the persistent location store and sets
@@ -1199,6 +1212,7 @@ func initEventStore() {
 func initBattlepassStore() {
 	if globalStore != nil {
 		globalBattlepassStore = newBattlepassStore(globalStore, defaultServerID)
+		healBattlepassGrantLedger(globalBattlepassStore)
 		return
 	}
 	s, err := openBattlepassStore(filepath.Join(configDir(), "battlepass.db"))
@@ -1207,6 +1221,37 @@ func initBattlepassStore() {
 		return
 	}
 	globalBattlepassStore = s
+	healBattlepassGrantLedger(s)
+}
+
+// healBattlepassGrantLedger runs the one-shot #259/#280 ledger self-heal at
+// startup (see healExhaustedOnlineGrantLedger). Best-effort: a failure is
+// logged, never fatal.
+func healBattlepassGrantLedger(s *battlepassStore) {
+	healed, err := s.healExhaustedOnlineGrantLedger()
+	if err != nil {
+		componentLog("battlepass").Warn().Err(err).Msg("grant-ledger self-heal failed")
+		return
+	}
+	if healed > 0 {
+		componentLog("battlepass").Info().Int64("rows", healed).Msg("re-queued grants exhausted by the pre-fix online policy")
+	}
+}
+
+// initCharacterBackupsStore opens (or creates) the character-backups SQLite
+// store and sets globalCharacterBackupsStore. A failure is non-fatal —
+// handlers guard for nil and skip the optional backup step.
+func initCharacterBackupsStore() {
+	if globalStore != nil {
+		globalCharacterBackupsStore = newCharacterBackupsStore(globalStore, defaultServerID)
+		return
+	}
+	s, err := openCharacterBackupsStore(filepath.Join(configDir(), "character-backups.db"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "character backups store: %v (backup-before-delete disabled)\n", err)
+		return
+	}
+	globalCharacterBackupsStore = s
 }
 
 // globalWelcomeCancel stops the welcome-package scanner goroutine on shutdown.

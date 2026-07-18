@@ -121,6 +121,159 @@ func TestProcessDeleteCharacter(t *testing.T) {
 			t.Fatal("expected error when delete_account reports no rows affected")
 		}
 	})
+
+	// #290: dune.delete_account never deletes the orphaned dune.player_state
+	// row it leaves behind, which is what causes duplicate Players-list rows
+	// and give-items/teleport to resolve against a stale pawn actor after a
+	// deletion. cleanupOrphans is the injected hook that cleans that up —
+	// it must run only after a genuinely successful delete, never otherwise.
+
+	t.Run("cleanupOrphans called after successful delete", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:     42,
+			reason:        "x",
+			resolveUser:   func(int64) (string, error) { return "DEADBEEF", nil },
+			deleteAccount: func(string, string) (bool, error) { return true, nil },
+			cleanupOrphans: func() error {
+				called = true
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !called {
+			t.Error("cleanupOrphans must be called after a successful delete")
+		}
+	})
+
+	t.Run("cleanupOrphans not called when deleteAccount fails", func(t *testing.T) {
+		t.Parallel()
+		boom := errors.New("db down")
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:     42,
+			reason:        "x",
+			resolveUser:   func(int64) (string, error) { return "DEADBEEF", nil },
+			deleteAccount: func(string, string) (bool, error) { return false, boom },
+			cleanupOrphans: func() error {
+				t.Error("cleanupOrphans must not be called when deleteAccount fails")
+				return nil
+			},
+		})
+		if !errors.Is(err, boom) {
+			t.Fatalf("want boom, got %v", err)
+		}
+	})
+
+	t.Run("cleanupOrphans not called when deleteAccount reports not found", func(t *testing.T) {
+		t.Parallel()
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:     42,
+			reason:        "x",
+			resolveUser:   func(int64) (string, error) { return "DEADBEEF", nil },
+			deleteAccount: func(string, string) (bool, error) { return false, nil },
+			cleanupOrphans: func() error {
+				t.Error("cleanupOrphans must not be called when delete_account reports no rows affected")
+				return nil
+			},
+		})
+		if err == nil {
+			t.Fatal("expected error when delete_account reports no rows affected")
+		}
+	})
+
+	t.Run("cleanupOrphans error propagates", func(t *testing.T) {
+		t.Parallel()
+		boom := errors.New("cleanup boom")
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:      42,
+			reason:         "x",
+			resolveUser:    func(int64) (string, error) { return "DEADBEEF", nil },
+			deleteAccount:  func(string, string) (bool, error) { return true, nil },
+			cleanupOrphans: func() error { return boom },
+		})
+		if !errors.Is(err, boom) {
+			t.Fatalf("want cleanup error to propagate wrapping boom, got %v", err)
+		}
+	})
+
+	t.Run("nil cleanupOrphans is fine", func(t *testing.T) {
+		t.Parallel()
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:     42,
+			reason:        "x",
+			resolveUser:   func(int64) (string, error) { return "DEADBEEF", nil },
+			deleteAccount: func(string, string) (bool, error) { return true, nil },
+			// cleanupOrphans intentionally omitted (nil) — must not panic.
+		})
+		if err != nil {
+			t.Fatalf("unexpected error with nil cleanupOrphans: %v", err)
+		}
+	})
+
+	// captureSnapshot must run BEFORE deleteAccount (opposite timing from
+	// cleanupOrphans) — the pawn/controller ids a snapshot needs stop
+	// existing the moment delete_account succeeds.
+
+	t.Run("captureSnapshot called before deleteAccount", func(t *testing.T) {
+		t.Parallel()
+		var order []string
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:   42,
+			reason:      "x",
+			resolveUser: func(int64) (string, error) { return "DEADBEEF", nil },
+			captureSnapshot: func() error {
+				order = append(order, "capture")
+				return nil
+			},
+			deleteAccount: func(string, string) (bool, error) {
+				order = append(order, "delete")
+				return true, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(order) != 2 || order[0] != "capture" || order[1] != "delete" {
+			t.Fatalf("call order = %v, want [capture delete]", order)
+		}
+	})
+
+	t.Run("captureSnapshot failure aborts before deleteAccount runs", func(t *testing.T) {
+		t.Parallel()
+		boom := errors.New("capture boom")
+		deleteCalled := false
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:       42,
+			reason:          "x",
+			resolveUser:     func(int64) (string, error) { return "DEADBEEF", nil },
+			captureSnapshot: func() error { return boom },
+			deleteAccount:   func(string, string) (bool, error) { deleteCalled = true; return true, nil },
+		})
+		if !errors.Is(err, boom) {
+			t.Fatalf("want capture error to propagate wrapping boom, got %v", err)
+		}
+		if deleteCalled {
+			t.Error("deleteAccount must not run when captureSnapshot fails — the whole point of the checkbox is not proceeding without the safety net")
+		}
+	})
+
+	t.Run("nil captureSnapshot is fine", func(t *testing.T) {
+		t.Parallel()
+		err := processDeleteCharacter(deleteCharacterParams{
+			accountID:     42,
+			reason:        "x",
+			resolveUser:   func(int64) (string, error) { return "DEADBEEF", nil },
+			deleteAccount: func(string, string) (bool, error) { return true, nil },
+			// captureSnapshot intentionally omitted (nil) — must not panic;
+			// this is the "admin didn't check the backup box" path.
+		})
+		if err != nil {
+			t.Fatalf("unexpected error with nil captureSnapshot: %v", err)
+		}
+	})
 }
 
 // TestHandleDeleteCharacter_InputValidation verifies bad input returns 400.
