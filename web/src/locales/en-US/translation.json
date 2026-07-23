@@ -65,6 +65,7 @@
     "ifaceSaveFailed": "Save failed: {{message}}",
     "ifaceLabel": "Label",
     "ifaceUrl": "URL (http:// or /path)",
+    "ifaceNoProxy": "Open directly (don't proxy)",
     "editInterfaces": "Edit web interfaces",
     "removeInterface": "Remove",
     "addInterface": "Add interface",
@@ -275,6 +276,7 @@
       "backup": "Backup",
       "backupMsg": "Create a database backup? This may take a few minutes.",
       "restart": "Restart",
+      "restart-partition": "Restart Partition",
       "restartMsg": "Restart the server? Players will be briefly disconnected.",
       "restore": "Restore",
       "restoreMsg": "Restore database from backup? This will overwrite current data.",
@@ -319,6 +321,14 @@
     "noGameServers": "No game servers found.",
     "noOutput": "(no output)",
     "phase": "Phase",
+    "restartPartition": {
+      "body": "This restarts only the {{map}} (partition {{partition}}) server process. Players on this map will be briefly disconnected — other maps in the Battlegroup are unaffected.",
+      "confirm": "Restart Partition",
+      "failed": "Failed to restart {{map}}: {{message}}",
+      "success": "{{map}} partition restarted",
+      "title": "Restart {{map}}?",
+      "tooltip": "Restart just this partition"
+    },
     "restore": {
       "dropzone": "Drop or click to upload a .backup or .zip from your computer",
       "noBackups": "No backup files on server yet.",
@@ -491,7 +501,10 @@
     "calibSaveFailed": "Failed to save calibration: {{message}}",
     "calibRemoveLast": "Remove last point",
     "calibReset": "Reset to default",
-    "calibResetFailed": "Failed to reset calibration: {{message}}"
+    "calibResetFailed": "Failed to reset calibration: {{message}}",
+    "dimensionLabel": "Dimension",
+    "dimensionAll": "All dimensions",
+    "dimensionOption": "Dimension {{n}}"
   },
   "logs": {
     "antiCheatLabel": "Anti-cheat events",
@@ -649,6 +662,15 @@
       "tickingEnabled": "Ticking enabled"
     },
     "botControl": "Bot Control",
+    "disable": {
+      "alreadyDisabled": "Disabled",
+      "ariaLabel": "Disable {{name}} for the market bot",
+      "button": "Disable",
+      "confirmBody": "{{name}} will be blacklisted from the market bot. Its bot listings are removed on the next bot tick — no full market wipe. Player-owned orders are never affected.",
+      "confirmLabel": "Disable",
+      "confirmTitle": "Disable market item?",
+      "success": "{{name}} disabled — bot listings clear on the next tick."
+    },
     "itemDetail": {
       "activeListings": "Active Listings",
       "armorStats": "Armor Stats",
@@ -689,6 +711,7 @@
     },
     "subtitle": "Browse active exchange listings from bot and player sellers.",
     "table": {
+      "actions": "Actions",
       "ariaLabel": "Market items",
       "botStock": "Bot Stock",
       "category": "Category",
@@ -1076,6 +1099,7 @@
         "activeTagsLabel": "Active tags",
         "addCount_one": "Add ({{count}})",
         "addCount_other": "Add ({{count}})",
+        "addCustom": "Add custom tag: \"{{tag}}\"",
         "addTags": "Add Tags",
         "filterPlaceholder": "Filter to remove…",
         "noTags": "No tags",
@@ -1239,7 +1263,20 @@
       "all": "All",
       "online": "Online",
       "offline": "Offline",
-      "empty": "No players found"
+      "empty": "No players found",
+      "faction": "Filter by faction"
+    },
+    "sort": {
+      "label": "Sort by",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "class": "Class",
+        "map": "Map",
+        "faction_id": "Faction"
+      },
+      "ascLabel": "Sort ascending",
+      "descLabel": "Sort descending"
     },
     "intelAudit": {
       "title": "Intel Audit",
@@ -1328,11 +1365,14 @@
       "user": "AMP user",
       "apiUser": "AMP API user",
       "apiPassword": "AMP API password",
+      "apiHost": "AMP API host",
+      "apiHostHint": "Only set this if AMP's Web API runs on a different, reachable host than the game server (split control-plane topology). Defaults to 127.0.0.1.",
       "apiPort": "AMP API port",
       "apiHint": "AMP Web API login. Lets dune-admin manage server settings under AMP so they survive restarts. Default port 8081."
     },
     "broker": {
       "adminAddr": "Admin addr",
+      "ampHint": "Under AMP the broker is reached via the exec prefix below (rabbitmqctl through container exec) — network address, user, and password aren't used.",
       "execPrefix": "Exec prefix",
       "execPrefixHint": "when broker is inside a container",
       "gameAddr": "Game addr",

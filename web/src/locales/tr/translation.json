@@ -65,6 +65,7 @@
     "ifaceSaveFailed": "Kaydetme başarısız: {{message}}",
     "ifaceLabel": "Etiket",
     "ifaceUrl": "URL (http:// veya /yol)",
+    "ifaceNoProxy": "Doğrudan aç (proxy kullanma)",
     "editInterfaces": "Web arayüzlerini düzenle",
     "removeInterface": "Kaldır",
     "addInterface": "Arayüz ekle",
@@ -275,6 +276,7 @@
       "backup": "Yedekle",
       "backupMsg": "Veritabanı yedeği oluşturulsun mu? Bu işlem birkaç dakika sürebilir.",
       "restart": "Yeniden Başlat",
+      "restart-partition": "Bölümü Yeniden Başlat",
       "restartMsg": "Sunucu yeniden başlatılsın mı? Oyuncular kısa süreliğine bağlantısı kesilecek.",
       "restore": "Geri Yükle",
       "restoreMsg": "Veritabanı yedekten geri yüklensin mi? Bu işlem mevcut verilerin üzerine yazacak.",
@@ -319,6 +321,14 @@
     "noGameServers": "Oyun sunucusu bulunamadı.",
     "noOutput": "(çıktı yok)",
     "phase": "Aşama",
+    "restartPartition": {
+      "body": "Bu yalnızca {{map}} (bölüm {{partition}}) sunucu sürecini yeniden başlatır. Bu haritadaki oyuncuların bağlantısı kısa süreliğine kesilir — Battlegroup'taki diğer haritalar etkilenmez.",
+      "confirm": "Bölümü Yeniden Başlat",
+      "failed": "{{map}} yeniden başlatılamadı: {{message}}",
+      "success": "{{map}} bölümü yeniden başlatıldı",
+      "title": "{{map}} yeniden başlatılsın mı?",
+      "tooltip": "Yalnızca bu bölümü yeniden başlat"
+    },
     "restore": {
       "dropzone": "Bilgisayarınızdan .backup veya .zip dosyası bırakın ya da tıklayarak yükleyin",
       "noBackups": "Sunucuda henüz yedek dosyası yok.",
@@ -491,7 +501,10 @@
     "calibSaveFailed": "Kalibrasyon kaydedilemedi: {{message}}",
     "calibRemoveLast": "Son noktayı kaldır",
     "calibReset": "Varsayılana sıfırla",
-    "calibResetFailed": "Kalibrasyon sıfırlanamadı: {{message}}"
+    "calibResetFailed": "Kalibrasyon sıfırlanamadı: {{message}}",
+    "dimensionLabel": "Boyut",
+    "dimensionAll": "Tüm boyutlar",
+    "dimensionOption": "Boyut {{n}}"
   },
   "logs": {
     "antiCheatLabel": "Hile karşıtı olaylar",
@@ -699,9 +712,19 @@
       "noItemsFound": "Eşya bulunamadı.",
       "rarity": "Nadilik",
       "stock": "Stok",
-      "tier": "Kademe"
+      "tier": "Kademe",
+      "actions": "Actions"
     },
-    "title": "Market Panosu"
+    "title": "Market Panosu",
+    "disable": {
+      "alreadyDisabled": "Disabled",
+      "ariaLabel": "Disable {{name}} for the market bot",
+      "button": "Disable",
+      "confirmBody": "{{name}} will be blacklisted from the market bot. Its bot listings are removed on the next bot tick — no full market wipe. Player-owned orders are never affected.",
+      "confirmLabel": "Disable",
+      "confirmTitle": "Disable market item?",
+      "success": "{{name}} disabled — bot listings clear on the next tick."
+    }
   },
   "nav": {
     "director": "Director",
@@ -1076,6 +1099,7 @@
         "activeTagsLabel": "Aktif etiketler",
         "addCount_one": "Ekle ({{count}})",
         "addCount_other": "Ekle ({{count}})",
+        "addCustom": "Özel etiket ekle: \"{{tag}}\"",
         "addTags": "Etiket Ekle",
         "filterPlaceholder": "Kaldırmak için filtrele…",
         "noTags": "Etiket yok",
@@ -1239,7 +1263,20 @@
       "all": "All",
       "online": "Online",
       "offline": "Offline",
-      "empty": "No players found"
+      "empty": "No players found",
+      "faction": "Filter by faction"
+    },
+    "sort": {
+      "label": "Sort by",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "class": "Class",
+        "map": "Map",
+        "faction_id": "Faction"
+      },
+      "ascLabel": "Sort ascending",
+      "descLabel": "Sort descending"
     },
     "intelAudit": {
       "title": "Intel Denetimi",
@@ -1329,10 +1366,13 @@
       "apiUser": "AMP API kullanıcısı",
       "apiPassword": "AMP API parolası",
       "apiPort": "AMP API bağlantı noktası",
-      "apiHint": "AMP Web API girişi. dune-admin'in sunucu ayarlarını AMP altında yönetmesini sağlar, böylece yeniden başlatmalardan sonra da kalıcı olur. Varsayılan bağlantı noktası 8081."
+      "apiHint": "AMP Web API girişi. dune-admin'in sunucu ayarlarını AMP altında yönetmesini sağlar, böylece yeniden başlatmalardan sonra da kalıcı olur. Varsayılan bağlantı noktası 8081.",
+      "apiHost": "AMP API host",
+      "apiHostHint": "Only set this if AMP's Web API runs on a different, reachable host than the game server (split control-plane topology). Defaults to 127.0.0.1."
     },
     "broker": {
       "adminAddr": "Yönetici adresi",
+      "ampHint": "AMP altında broker'a aşağıdaki exec ön eki üzerinden erişilir (konteyner exec üzerinden rabbitmqctl) — ağ adresi, kullanıcı ve parola kullanılmaz.",
       "execPrefix": "Exec ön eki",
       "execPrefixHint": "broker bir konteyner içindeyken",
       "gameAddr": "Oyun adresi",

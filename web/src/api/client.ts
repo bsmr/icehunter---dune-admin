@@ -206,6 +206,10 @@ export type AppConfig = {
   amp_data_root: string
   amp_api_user: string
   amp_api_pass: string // masked when non-empty
+  // Host for the AMP Web API call. Empty → 127.0.0.1 (AMP and the game server
+  // share a host). Set only for a split control-plane topology where AMP's
+  // Web API runs on a separate, reachable VM from the game server (issue #284).
+  amp_api_host: string
   amp_api_port: number
   director_url: string
   // Optional host override for control-plane-discovered Web Interface URLs
@@ -418,6 +422,7 @@ export type MapMarker = {
   class?: string
   map: string
   partition_id: number
+  dimension_index: number
   x: number
   y: number
   z: number
@@ -503,6 +508,11 @@ export type ScheduledBackups = {
 export type WebInterface = {
   label: string
   url: string
+  // noProxy opts this entry out of the mesh web proxy: the SPA opens `url`
+  // as-is instead of a rewritten proxy port. For NAT/reverse-proxy setups
+  // where only fixed published ports are reachable, the proxy's rewritten
+  // URL is unreachable — this restores the pre-v0.42.0 behaviour per entry.
+  noProxy?: boolean
   // proxyPort, when set, is the local dune-admin port that reverse-proxies this
   // service over the mesh tunnel. The SPA opens it via the current host on that
   // port, so the (possibly unresolvable) game-side url is bypassed.
@@ -1196,6 +1206,7 @@ export const api = {
       return res.json()
     },
     restore: (file: string) => req<{ ok: string }>('POST', '/battlegroup/restore', { file }),
+    restartPartition: (partition: number) => req<BGOutput>('POST', '/battlegroup/restart-partition', { partition }),
   },
 
   players: {
@@ -1368,7 +1379,11 @@ export const api = {
   },
 
   map: {
-    markers: (mapKey: string) => req<MapMarker[]>('GET', `/map/markers?map=${encodeURIComponent(mapKey)}`),
+    markers: (mapKey: string, dimension?: number | null) => {
+      const dimParam = dimension != null ? `&dimension=${dimension}` : ''
+      return req<MapMarker[]>('GET', `/map/markers?map=${encodeURIComponent(mapKey)}${dimParam}`)
+    },
+    dimensions: (mapKey: string) => req<number[]>('GET', `/map/dimensions?map=${encodeURIComponent(mapKey)}`),
     calibration: {
       get: (mapKey: string) => req<MapCalibration>('GET', `/map/calibration?map=${encodeURIComponent(mapKey)}`),
       save: (mapKey: string, c: Omit<MapCalibration, 'map_key'>) =>

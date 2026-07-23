@@ -65,6 +65,7 @@
     "ifaceSaveFailed": "保存に失敗しました: {{message}}",
     "ifaceLabel": "ラベル",
     "ifaceUrl": "URL (http:// または /path)",
+    "ifaceNoProxy": "直接開く（プロキシを使用しない）",
     "editInterfaces": "Web インターフェースを編集",
     "removeInterface": "削除",
     "addInterface": "インターフェースを追加",
@@ -275,6 +276,7 @@
       "backup": "バックアップ",
       "backupMsg": "データベースバックアップを作成しますか？数分かかる場合があります。",
       "restart": "再起動",
+      "restart-partition": "パーティションを再起動",
       "restartMsg": "サーバーを再起動しますか？プレイヤーは一時的に切断されます。",
       "restore": "復元",
       "restoreMsg": "バックアップからデータベースを復元しますか？現在のデータが上書きされます。",
@@ -319,6 +321,14 @@
     "noGameServers": "ゲームサーバーが見つかりません。",
     "noOutput": "（出力なし）",
     "phase": "フェーズ",
+    "restartPartition": {
+      "body": "{{map}}（パーティション {{partition}}）のサーバープロセスのみが再起動されます。このマップのプレイヤーは一時的に切断されますが、Battlegroup内の他のマップには影響しません。",
+      "confirm": "パーティションを再起動",
+      "failed": "{{map}} の再起動に失敗しました: {{message}}",
+      "success": "{{map}} パーティションを再起動しました",
+      "title": "{{map}} を再起動しますか?",
+      "tooltip": "このパーティションのみを再起動します"
+    },
     "restore": {
       "dropzone": "コンピューターから .backup または .zip ファイルをドロップするかクリックしてアップロード",
       "noBackups": "サーバーにバックアップファイルがまだありません。",
@@ -491,7 +501,10 @@
     "calibSaveFailed": "キャリブレーションの保存に失敗しました: {{message}}",
     "calibRemoveLast": "最後のポイントを削除",
     "calibReset": "デフォルトにリセット",
-    "calibResetFailed": "キャリブレーションのリセットに失敗しました: {{message}}"
+    "calibResetFailed": "キャリブレーションのリセットに失敗しました: {{message}}",
+    "dimensionLabel": "ディメンション",
+    "dimensionAll": "すべてのディメンション",
+    "dimensionOption": "ディメンション {{n}}"
   },
   "logs": {
     "antiCheatLabel": "アンチチートイベント",
@@ -699,9 +712,19 @@
       "noItemsFound": "アイテムが見つかりません。",
       "rarity": "レアリティ",
       "stock": "在庫",
-      "tier": "ティア"
+      "tier": "ティア",
+      "actions": "Actions"
     },
-    "title": "マーケットボード"
+    "title": "マーケットボード",
+    "disable": {
+      "alreadyDisabled": "Disabled",
+      "ariaLabel": "Disable {{name}} for the market bot",
+      "button": "Disable",
+      "confirmBody": "{{name}} will be blacklisted from the market bot. Its bot listings are removed on the next bot tick — no full market wipe. Player-owned orders are never affected.",
+      "confirmLabel": "Disable",
+      "confirmTitle": "Disable market item?",
+      "success": "{{name}} disabled — bot listings clear on the next tick."
+    }
   },
   "nav": {
     "director": "Director",
@@ -1076,6 +1099,7 @@
         "activeTagsLabel": "アクティブタグ",
         "addCount_one": "追加 ({{count}})",
         "addCount_other": "追加 ({{count}})",
+        "addCustom": "カスタムタグを追加: \"{{tag}}\"",
         "addTags": "タグを追加",
         "filterPlaceholder": "削除するタグをフィルター…",
         "noTags": "タグがありません",
@@ -1239,7 +1263,20 @@
       "all": "All",
       "online": "Online",
       "offline": "Offline",
-      "empty": "No players found"
+      "empty": "No players found",
+      "faction": "Filter by faction"
+    },
+    "sort": {
+      "label": "Sort by",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "class": "Class",
+        "map": "Map",
+        "faction_id": "Faction"
+      },
+      "ascLabel": "Sort ascending",
+      "descLabel": "Sort descending"
     },
     "intelAudit": {
       "title": "インテル監査",
@@ -1329,10 +1366,13 @@
       "apiUser": "AMP API ユーザー",
       "apiPassword": "AMP API パスワード",
       "apiPort": "AMP API ポート",
-      "apiHint": "AMP Web API ログイン。dune-admin が AMP 配下のサーバー設定を管理できるようにし、再起動後も保持されます。デフォルトポートは 8081。"
+      "apiHint": "AMP Web API ログイン。dune-admin が AMP 配下のサーバー設定を管理できるようにし、再起動後も保持されます。デフォルトポートは 8081。",
+      "apiHost": "AMP API host",
+      "apiHostHint": "Only set this if AMP's Web API runs on a different, reachable host than the game server (split control-plane topology). Defaults to 127.0.0.1."
     },
     "broker": {
       "adminAddr": "管理者アドレス",
+      "ampHint": "AMPでは、brokerは以下の実行プレフィックス経由でアクセスされます(コンテナexec経由のrabbitmqctl)。ネットワークアドレス、ユーザー、パスワードは使用されません。",
       "execPrefix": "実行プレフィックス",
       "execPrefixHint": "brokerがコンテナ内にある場合",
       "gameAddr": "ゲームアドレス",

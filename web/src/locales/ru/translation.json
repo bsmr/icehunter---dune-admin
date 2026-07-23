@@ -65,6 +65,7 @@
     "ifaceSaveFailed": "Не удалось сохранить: {{message}}",
     "ifaceLabel": "Метка",
     "ifaceUrl": "URL (http:// или /путь)",
+    "ifaceNoProxy": "Открыть напрямую (без прокси)",
     "editInterfaces": "Редактировать веб-интерфейсы",
     "removeInterface": "Удалить",
     "addInterface": "Добавить интерфейс",
@@ -277,6 +278,7 @@
       "backup": "Резервная копия",
       "backupMsg": "Создать резервную копию базы данных? Это может занять несколько минут.",
       "restart": "Перезапустить",
+      "restart-partition": "Перезапустить партицию",
       "restartMsg": "Перезапустить сервер? Игроки будут ненадолго отключены.",
       "restore": "Восстановить",
       "restoreMsg": "Восстановить базу данных из резервной копии? Текущие данные будут перезаписаны.",
@@ -321,6 +323,14 @@
     "noGameServers": "Игровые серверы не найдены.",
     "noOutput": "(нет вывода)",
     "phase": "Фаза",
+    "restartPartition": {
+      "body": "Будет перезапущен только серверный процесс {{map}} (партиция {{partition}}). Игроки на этой карте будут ненадолго отключены — остальные карты Battlegroup не затронуты.",
+      "confirm": "Перезапустить партицию",
+      "failed": "Не удалось перезапустить {{map}}: {{message}}",
+      "success": "Партиция {{map}} перезапущена",
+      "title": "Перезапустить {{map}}?",
+      "tooltip": "Перезапустить только эту партицию"
+    },
     "restore": {
       "dropzone": "Перетащите или нажмите для загрузки файла .backup или .zip с компьютера",
       "noBackups": "На сервере ещё нет файлов резервных копий.",
@@ -497,7 +507,10 @@
     "calibSaveFailed": "Не удалось сохранить калибровку: {{message}}",
     "calibRemoveLast": "Удалить последнюю точку",
     "calibReset": "Сбросить по умолчанию",
-    "calibResetFailed": "Не удалось сбросить калибровку: {{message}}"
+    "calibResetFailed": "Не удалось сбросить калибровку: {{message}}",
+    "dimensionLabel": "Измерение",
+    "dimensionAll": "Все измерения",
+    "dimensionOption": "Измерение {{n}}"
   },
   "logs": {
     "antiCheatLabel": "События античита",
@@ -713,9 +726,19 @@
       "noItemsFound": "Предметы не найдены.",
       "rarity": "Редкость",
       "stock": "Запас",
-      "tier": "Уровень"
+      "tier": "Уровень",
+      "actions": "Actions"
     },
-    "title": "Доска рынка"
+    "title": "Доска рынка",
+    "disable": {
+      "alreadyDisabled": "Disabled",
+      "ariaLabel": "Disable {{name}} for the market bot",
+      "button": "Disable",
+      "confirmBody": "{{name}} will be blacklisted from the market bot. Its bot listings are removed on the next bot tick — no full market wipe. Player-owned orders are never affected.",
+      "confirmLabel": "Disable",
+      "confirmTitle": "Disable market item?",
+      "success": "{{name}} disabled — bot listings clear on the next tick."
+    }
   },
   "nav": {
     "director": "Director",
@@ -1106,6 +1129,7 @@
         "addCount_few": "Добавить ({{count}})",
         "addCount_many": "Добавить ({{count}})",
         "addCount_other": "Добавить ({{count}})",
+        "addCustom": "Добавить пользовательский тег: \"{{tag}}\"",
         "addTags": "Добавить теги",
         "filterPlaceholder": "Фильтр для удаления…",
         "noTags": "Нет тегов",
@@ -1273,7 +1297,20 @@
       "all": "All",
       "online": "Online",
       "offline": "Offline",
-      "empty": "No players found"
+      "empty": "No players found",
+      "faction": "Filter by faction"
+    },
+    "sort": {
+      "label": "Sort by",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "class": "Class",
+        "map": "Map",
+        "faction_id": "Faction"
+      },
+      "ascLabel": "Sort ascending",
+      "descLabel": "Sort descending"
     },
     "intelAudit": {
       "title": "Аудит интеллекта",
@@ -1371,10 +1408,13 @@
       "apiUser": "Пользователь API AMP",
       "apiPassword": "Пароль API AMP",
       "apiPort": "Порт API AMP",
-      "apiHint": "Вход в веб-API AMP. Позволяет dune-admin управлять настройками сервера в AMP, чтобы они сохранялись после перезапусков. Порт по умолчанию 8081."
+      "apiHint": "Вход в веб-API AMP. Позволяет dune-admin управлять настройками сервера в AMP, чтобы они сохранялись после перезапусков. Порт по умолчанию 8081.",
+      "apiHost": "AMP API host",
+      "apiHostHint": "Only set this if AMP's Web API runs on a different, reachable host than the game server (split control-plane topology). Defaults to 127.0.0.1."
     },
     "broker": {
       "adminAddr": "Адрес администратора",
+      "ampHint": "Под AMP брокер доступен через префикс выполнения ниже (rabbitmqctl через exec контейнера) — сетевой адрес, пользователь и пароль не используются.",
       "execPrefix": "Префикс выполнения",
       "execPrefixHint": "когда broker находится в контейнере",
       "gameAddr": "Адрес игры",

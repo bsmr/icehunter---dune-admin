@@ -65,6 +65,7 @@
     "ifaceSaveFailed": "Speichern fehlgeschlagen: {{message}}",
     "ifaceLabel": "Bezeichnung",
     "ifaceUrl": "URL (http:// oder /Pfad)",
+    "ifaceNoProxy": "Direkt öffnen (nicht über Proxy)",
     "editInterfaces": "Web-Oberflächen bearbeiten",
     "removeInterface": "Entfernen",
     "addInterface": "Oberfläche hinzufügen",
@@ -275,6 +276,7 @@
       "backup": "Sichern",
       "backupMsg": "Datenbanksicherung erstellen? Dies kann einige Minuten dauern.",
       "restart": "Neustarten",
+      "restart-partition": "Partition neu starten",
       "restartMsg": "Server neustarten? Spieler werden kurz getrennt.",
       "restore": "Wiederherstellen",
       "restoreMsg": "Datenbank aus Sicherung wiederherstellen? Aktuelle Daten werden überschrieben.",
@@ -319,6 +321,14 @@
     "noGameServers": "Keine Spielserver gefunden.",
     "noOutput": "(keine Ausgabe)",
     "phase": "Phase",
+    "restartPartition": {
+      "body": "Dies startet nur den Serverprozess von {{map}} (Partition {{partition}}) neu. Spieler auf dieser Karte werden kurz getrennt — andere Karten der Battlegroup sind nicht betroffen.",
+      "confirm": "Partition neu starten",
+      "failed": "Neustart von {{map}} fehlgeschlagen: {{message}}",
+      "success": "{{map}}-Partition neu gestartet",
+      "title": "{{map}} neu starten?",
+      "tooltip": "Nur diese Partition neu starten"
+    },
     "restore": {
       "dropzone": "Ablegen oder klicken, um eine .backup- oder .zip-Datei hochzuladen",
       "noBackups": "Noch keine Sicherungsdateien auf dem Server.",
@@ -491,7 +501,10 @@
     "calibSaveFailed": "Kalibrierung konnte nicht gespeichert werden: {{message}}",
     "calibRemoveLast": "Letzten Punkt entfernen",
     "calibReset": "Auf Standard zurücksetzen",
-    "calibResetFailed": "Kalibrierung konnte nicht zurückgesetzt werden: {{message}}"
+    "calibResetFailed": "Kalibrierung konnte nicht zurückgesetzt werden: {{message}}",
+    "dimensionLabel": "Dimension",
+    "dimensionAll": "Alle Dimensionen",
+    "dimensionOption": "Dimension {{n}}"
   },
   "logs": {
     "antiCheatLabel": "Anti-Cheat-Ereignisse",
@@ -699,9 +712,19 @@
       "noItemsFound": "Keine Gegenstände gefunden.",
       "rarity": "Seltenheit",
       "stock": "Bestand",
-      "tier": "Stufe"
+      "tier": "Stufe",
+      "actions": "Actions"
     },
-    "title": "Marktplatz"
+    "title": "Marktplatz",
+    "disable": {
+      "alreadyDisabled": "Disabled",
+      "ariaLabel": "Disable {{name}} for the market bot",
+      "button": "Disable",
+      "confirmBody": "{{name}} will be blacklisted from the market bot. Its bot listings are removed on the next bot tick — no full market wipe. Player-owned orders are never affected.",
+      "confirmLabel": "Disable",
+      "confirmTitle": "Disable market item?",
+      "success": "{{name}} disabled — bot listings clear on the next tick."
+    }
   },
   "nav": {
     "director": "Director",
@@ -1076,6 +1099,7 @@
         "activeTagsLabel": "Aktive Tags",
         "addCount_one": "Hinzufügen ({{count}})",
         "addCount_other": "Hinzufügen ({{count}})",
+        "addCustom": "Benutzerdefinierten Tag hinzufügen: \"{{tag}}\"",
         "addTags": "Tags hinzufügen",
         "filterPlaceholder": "Zum Entfernen filtern…",
         "noTags": "Keine Tags",
@@ -1239,7 +1263,20 @@
       "all": "All",
       "online": "Online",
       "offline": "Offline",
-      "empty": "No players found"
+      "empty": "No players found",
+      "faction": "Filter by faction"
+    },
+    "sort": {
+      "label": "Sort by",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "class": "Class",
+        "map": "Map",
+        "faction_id": "Faction"
+      },
+      "ascLabel": "Sort ascending",
+      "descLabel": "Sort descending"
     },
     "intelAudit": {
       "title": "Intel-Prüfung",
@@ -1329,10 +1366,13 @@
       "apiUser": "AMP-API-Benutzer",
       "apiPassword": "AMP-API-Passwort",
       "apiPort": "AMP-API-Port",
-      "apiHint": "AMP-Web-API-Anmeldung. Ermöglicht dune-admin, Servereinstellungen unter AMP zu verwalten, sodass sie Neustarts überstehen. Standardport 8081."
+      "apiHint": "AMP-Web-API-Anmeldung. Ermöglicht dune-admin, Servereinstellungen unter AMP zu verwalten, sodass sie Neustarts überstehen. Standardport 8081.",
+      "apiHost": "AMP API host",
+      "apiHostHint": "Only set this if AMP's Web API runs on a different, reachable host than the game server (split control-plane topology). Defaults to 127.0.0.1."
     },
     "broker": {
       "adminAddr": "Admin-Adresse",
+      "ampHint": "Unter AMP wird der Broker über das unten stehende Ausführungspräfix erreicht (rabbitmqctl über Container-Exec) — Netzwerkadresse, Benutzer und Passwort werden nicht verwendet.",
       "execPrefix": "Ausführungspräfix",
       "execPrefixHint": "wenn Broker in einem Container ist",
       "gameAddr": "Spieladresse",

@@ -65,6 +65,7 @@
     "ifaceSaveFailed": "Error al guardar: {{message}}",
     "ifaceLabel": "Etiqueta",
     "ifaceUrl": "URL (http:// o /ruta)",
+    "ifaceNoProxy": "Abrir directamente (sin proxy)",
     "editInterfaces": "Editar interfaces web",
     "removeInterface": "Eliminar",
     "addInterface": "Añadir interfaz",
@@ -276,6 +277,7 @@
       "backup": "Respaldar",
       "backupMsg": "¿Crear una copia de seguridad de la base de datos? Esto puede tardar unos minutos.",
       "restart": "Reiniciar",
+      "restart-partition": "Reiniciar partición",
       "restartMsg": "¿Reiniciar el servidor? Los jugadores serán desconectados brevemente.",
       "restore": "Restaurar",
       "restoreMsg": "¿Restaurar la base de datos desde la copia de seguridad? Esto sobrescribirá los datos actuales.",
@@ -320,6 +322,14 @@
     "noGameServers": "No se encontraron servidores de juego.",
     "noOutput": "(sin salida)",
     "phase": "Fase",
+    "restartPartition": {
+      "body": "Esto reinicia solo el proceso del servidor de {{map}} (partición {{partition}}). Los jugadores en este mapa se desconectarán brevemente; los demás mapas del Battlegroup no se ven afectados.",
+      "confirm": "Reiniciar partición",
+      "failed": "Error al reiniciar {{map}}: {{message}}",
+      "success": "Partición de {{map}} reiniciada",
+      "title": "¿Reiniciar {{map}}?",
+      "tooltip": "Reiniciar solo esta partición"
+    },
     "restore": {
       "dropzone": "Suelta o haz clic para subir un archivo .backup o .zip desde tu computadora",
       "noBackups": "Aún no hay archivos de copia de seguridad en el servidor.",
@@ -494,7 +504,10 @@
     "calibSaveFailed": "Error al guardar la calibración: {{message}}",
     "calibRemoveLast": "Eliminar último punto",
     "calibReset": "Restablecer a predeterminado",
-    "calibResetFailed": "Error al restablecer la calibración: {{message}}"
+    "calibResetFailed": "Error al restablecer la calibración: {{message}}",
+    "dimensionLabel": "Dimensión",
+    "dimensionAll": "Todas las dimensiones",
+    "dimensionOption": "Dimensión {{n}}"
   },
   "logs": {
     "antiCheatLabel": "Eventos antitrampas",
@@ -706,9 +719,19 @@
       "noItemsFound": "No se encontraron objetos.",
       "rarity": "Rareza",
       "stock": "Stock",
-      "tier": "Rango"
+      "tier": "Rango",
+      "actions": "Actions"
     },
-    "title": "Tablero del mercado"
+    "title": "Tablero del mercado",
+    "disable": {
+      "alreadyDisabled": "Disabled",
+      "ariaLabel": "Disable {{name}} for the market bot",
+      "button": "Disable",
+      "confirmBody": "{{name}} will be blacklisted from the market bot. Its bot listings are removed on the next bot tick — no full market wipe. Player-owned orders are never affected.",
+      "confirmLabel": "Disable",
+      "confirmTitle": "Disable market item?",
+      "success": "{{name}} disabled — bot listings clear on the next tick."
+    }
   },
   "nav": {
     "director": "Director",
@@ -1091,6 +1114,7 @@
         "addCount_one": "Añadir ({{count}})",
         "addCount_many": "Añadir ({{count}})",
         "addCount_other": "Añadir ({{count}})",
+        "addCustom": "Añadir etiqueta personalizada: \"{{tag}}\"",
         "addTags": "Añadir etiquetas",
         "filterPlaceholder": "Filtrar para eliminar…",
         "noTags": "Sin etiquetas",
@@ -1256,7 +1280,20 @@
       "all": "All",
       "online": "Online",
       "offline": "Offline",
-      "empty": "No players found"
+      "empty": "No players found",
+      "faction": "Filter by faction"
+    },
+    "sort": {
+      "label": "Sort by",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "class": "Class",
+        "map": "Map",
+        "faction_id": "Faction"
+      },
+      "ascLabel": "Sort ascending",
+      "descLabel": "Sort descending"
     },
     "intelAudit": {
       "title": "Auditoría de intel",
@@ -1350,10 +1387,13 @@
       "apiUser": "Usuario de la API de AMP",
       "apiPassword": "Contraseña de la API de AMP",
       "apiPort": "Puerto de la API de AMP",
-      "apiHint": "Inicio de sesión de la API web de AMP. Permite a dune-admin gestionar la configuración del servidor en AMP para que sobreviva a los reinicios. Puerto predeterminado 8081."
+      "apiHint": "Inicio de sesión de la API web de AMP. Permite a dune-admin gestionar la configuración del servidor en AMP para que sobreviva a los reinicios. Puerto predeterminado 8081.",
+      "apiHost": "AMP API host",
+      "apiHostHint": "Only set this if AMP's Web API runs on a different, reachable host than the game server (split control-plane topology). Defaults to 127.0.0.1."
     },
     "broker": {
       "adminAddr": "Dirección de admin",
+      "ampHint": "Bajo AMP, el broker se alcanza mediante el prefijo de ejecución de abajo (rabbitmqctl a través de exec de contenedor) — la dirección de red, el usuario y la contraseña no se usan.",
       "execPrefix": "Prefijo de ejecución",
       "execPrefixHint": "cuando el broker está dentro de un contenedor",
       "gameAddr": "Dirección del juego",
